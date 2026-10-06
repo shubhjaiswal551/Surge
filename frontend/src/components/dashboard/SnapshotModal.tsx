@@ -17,6 +17,254 @@ const formatTime = (secs: number) => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms}`;
 };
 
+interface BoundingBoxesLayerProps {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  telemetry: any;
+  isCam1: boolean;
+  clusterSize: number;
+  baseTracks: Array<{ id: string; startX: number; startY: number; endX: number; endY: number; w: number; h: number; conf: number }>;
+  duration: number;
+  showBoundingBoxes: boolean;
+  overlayOpacity: number;
+}
+
+const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
+  videoRef,
+  telemetry,
+  isCam1,
+  clusterSize,
+  baseTracks,
+  duration,
+  showBoundingBoxes,
+  overlayOpacity,
+}) => {
+  const [boxes, setBoxes] = useState<any[]>([]);
+
+  useEffect(() => {
+    let animId: number;
+    let lastT = -1;
+
+    const primaryBox = {
+      x: isCam1 ? 36 : 38,
+      y: isCam1 ? 46 : 34,
+      w: 22,
+      h: isCam1 ? 20 : 16,
+      label: `ANOMALY CLUSTER: ~${clusterSize}P`,
+      isPrimary: true,
+      isAnomaly: false,
+    };
+
+    const update = () => {
+      const vid = videoRef.current;
+      if (vid && !vid.paused) {
+        const t = vid.currentTime;
+        // Smooth ~25-30 FPS update interval isolated strictly to this tiny overlay DOM branch
+        if (Math.abs(t - lastT) >= 0.035) {
+          lastT = t;
+          if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+            const timeline = telemetry.timeline;
+            let idx1 = timeline.findIndex((item: any) => item.time >= t);
+            if (idx1 === -1) idx1 = timeline.length - 1;
+            const idx0 = Math.max(0, idx1 - 1);
+
+            const kf0 = timeline[idx0];
+            const kf1 = timeline[idx1];
+            const dt = kf1.time - kf0.time;
+            const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+
+            const realAiBoxes = (kf0.boxes || []).map((b0: any) => {
+              const b1 = (kf1.boxes || []).find((b: any) => b.id === b0.id) || b0;
+              const curX = b0.x + (b1.x - b0.x) * factor;
+              const curY = b0.y + (b1.y - b0.y) * factor;
+              const curW = b0.w + (b1.w - b0.w) * factor;
+              const curH = b0.h + (b1.h - b0.h) * factor;
+
+              return {
+                x: Math.round(curX * 10) / 10,
+                y: Math.round(curY * 10) / 10,
+                w: Math.round(curW * 10) / 10,
+                h: Math.round(curH * 10) / 10,
+                label: `${b0.label} · ${b0.conf}%`,
+                isPrimary: false,
+                isAnomaly: true,
+              };
+            });
+
+            setBoxes([primaryBox, ...realAiBoxes]);
+          } else {
+            const clipDuration = duration > 0 ? duration : 11.5;
+            const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
+            const personBoxes = baseTracks.map((trk) => ({
+              x: Math.round((trk.startX + (trk.endX - trk.startX) * progress) * 10) / 10,
+              y: Math.round((trk.startY + (trk.endY - trk.startY) * progress) * 10) / 10,
+              w: trk.w,
+              h: trk.h,
+              label: `${trk.id} · ${trk.conf}%`,
+              isPrimary: false,
+              isAnomaly: true,
+            }));
+            setBoxes([primaryBox, ...personBoxes]);
+          }
+        }
+      }
+      animId = requestAnimationFrame(update);
+    };
+
+    animId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animId);
+  }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration]);
+
+  if (!showBoundingBoxes) return null;
+
+  return (
+    <div
+      className="absolute inset-0 pointer-events-none z-13 transition-opacity duration-200"
+      style={{ opacity: Math.max(0.25, overlayOpacity / 100) }}
+    >
+      {boxes.map((b, i) => (
+        <div
+          key={i}
+          className={`absolute rounded-xs border transition-none ${
+            b.isPrimary
+              ? 'border-rose-400 bg-rose-500/15 shadow-[0_0_16px_rgba(244,63,94,0.4)]'
+              : b.isAnomaly
+              ? 'border-amber-400/90 bg-amber-500/12 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
+              : 'border-emerald-400/90 bg-emerald-500/10 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
+          }`}
+          style={{
+            left: `${b.x}%`,
+            top: `${b.y}%`,
+            width: `${b.w}%`,
+            height: `${b.h}%`,
+          }}
+        >
+          <span
+            className={`absolute -top-4 left-0 text-[8.5px] font-mono px-1.5 py-0.5 rounded shadow-sm leading-none whitespace-nowrap backdrop-blur-md flex items-center gap-1 ${
+              b.isPrimary
+                ? 'bg-rose-600 text-white font-bold tracking-tight'
+                : b.isAnomaly
+                ? 'bg-slate-950/95 text-amber-300 border border-amber-500/40 font-semibold'
+                : 'bg-slate-950/90 text-emerald-300 border border-emerald-500/40 font-medium'
+            }`}
+          >
+            <span
+              className={`w-1 h-1 rounded-full ${
+                b.isPrimary
+                  ? 'bg-white'
+                  : b.isAnomaly
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-emerald-400'
+              }`}
+            />
+            {b.label}
+          </span>
+          <div
+            className={`absolute top-0 left-0 w-1.5 h-1.5 border-t-2 border-l-2 ${
+              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
+            }`}
+          />
+          <div
+            className={`absolute top-0 right-0 w-1.5 h-1.5 border-t-2 border-r-2 ${
+              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
+            }`}
+          />
+          <div
+            className={`absolute bottom-0 left-0 w-1.5 h-1.5 border-b-2 border-l-2 ${
+              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
+            }`}
+          />
+          <div
+            className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b-2 border-r-2 ${
+              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
+            }`}
+          />
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const TimelineScrubber: React.FC<{
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  duration: number;
+  alert: Alert;
+  isPlaying: boolean;
+  onTogglePlay: () => void;
+}> = ({ videoRef, duration, alert, isPlaying, onTogglePlay }) => {
+  const [time, setTime] = useState(0);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    // Use native timeupdate event (fires ~3-4 times a second, 0% CPU overhead)
+    const handleTime = () => {
+      setTime(vid.currentTime);
+    };
+    vid.addEventListener('timeupdate', handleTime);
+    return () => vid.removeEventListener('timeupdate', handleTime);
+  }, [videoRef]);
+
+  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseFloat(e.target.value);
+    setTime(val);
+    if (videoRef.current) {
+      videoRef.current.currentTime = val;
+    }
+  };
+
+  return (
+    <div className="absolute bottom-3 left-3 right-3 bg-black/75 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-xl z-25 flex items-center gap-3 text-white text-xs">
+      <button
+        type="button"
+        onClick={onTogglePlay}
+        className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
+        title={isPlaying ? 'Pause Video' : 'Play Video'}
+      >
+        {isPlaying ? (
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+            <rect x="6" y="4" width="4" height="16" />
+            <rect x="14" y="4" width="4" height="16" />
+          </svg>
+        ) : (
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M8 5v14l11-7z" />
+          </svg>
+        )}
+      </button>
+
+      <span className="text-[10px] font-mono text-slate-300 tabular-nums shrink-0">
+        {formatTime(time)} / {formatTime(duration)}
+      </span>
+
+      <div className="relative flex-1 flex items-center h-4 group cursor-pointer">
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
+          style={{ left: '60%' }}
+        >
+          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-semibold px-1 rounded bg-rose-600 text-white whitespace-nowrap shadow-xs">
+            🔴 TRIGGER
+          </span>
+        </div>
+
+        <input
+          type="range"
+          min={0}
+          max={duration || 10}
+          step={0.1}
+          value={time}
+          onChange={handleSeek}
+          className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500"
+        />
+      </div>
+
+      <span className="text-[10px] font-mono text-slate-400 shrink-0 hidden sm:inline">
+        {alert.cameraId.toUpperCase()} ({alert.zoneName})
+      </span>
+    </div>
+  );
+};
+
 const SnapshotModal: React.FC<SnapshotModalProps> = ({
   alert,
   onClose,
@@ -27,10 +275,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
-  // Video playback & timeline state
+  // Video playback ref & state (no currentTime state at root to prevent video decoder starvation)
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
-  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
 
   // Interactive Layer Toggles (Heatmap & Reticle off by default, Boxes on)
@@ -39,25 +286,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [showVectors, setShowVectors] = useState(false);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [overlayOpacity, setOverlayOpacity] = useState(80);
-
-  // Smooth, throttled animation ticker to prevent browser thread congestion and video decoder stutter
-  useEffect(() => {
-    let animId: number;
-    let lastTime = -1;
-    const tick = () => {
-      if (videoRef.current && !videoRef.current.paused) {
-        const cur = videoRef.current.currentTime;
-        // Update at ~20-25 FPS (~45ms) so React re-renders do not starve the browser's hardware video decoder
-        if (Math.abs(cur - lastTime) >= 0.045) {
-          lastTime = cur;
-          setCurrentTime(cur);
-        }
-      }
-      animId = requestAnimationFrame(tick);
-    };
-    animId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(animId);
-  }, []);
 
   if (!alert) return null;
 
@@ -80,14 +308,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     } else {
       videoRef.current.play();
       setIsPlaying(true);
-    }
-  };
-
-  const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = parseFloat(e.target.value);
-    setCurrentTime(val);
-    if (videoRef.current) {
-      videoRef.current.currentTime = val;
     }
   };
 
@@ -209,77 +429,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
       { id: 'Subject #04', startX: 13, startY: 48, endX: 19, endY: 54, w: 6.2, h: 19.0, conf: 85 },
     ];
   }, [isCam1]);
-
-  // AI Bounding boxes powered directly by YOLOv8 + ByteTrack detections
-  const dynamicBoundingBoxes = useMemo(() => {
-    // Stably anchored anomaly cluster bounding box directly highlighting the doorway surge / bottleneck
-    const primaryBox = {
-      x: isCam1 ? 36 : 38,
-      y: isCam1 ? 46 : 34,
-      w: 22,
-      h: isCam1 ? 20 : 16,
-      label: `ANOMALY CLUSTER: ~${epicenter.clusterSize}P`,
-      isPrimary: true,
-      isAnomaly: false,
-    };
-
-    if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
-      const t = currentTime;
-      const timeline = telemetry.timeline;
-
-      // Find surrounding keyframes for silky 60 FPS sub-frame smooth interpolation
-      let idx1 = timeline.findIndex((item) => item.time >= t);
-      if (idx1 === -1) idx1 = timeline.length - 1;
-      const idx0 = Math.max(0, idx1 - 1);
-
-      const kf0 = timeline[idx0];
-      const kf1 = timeline[idx1];
-
-      const dt = kf1.time - kf0.time;
-      const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
-
-      const realAiBoxes = (kf0.boxes || []).map((b0) => {
-        const b1 = (kf1.boxes || []).find((b) => b.id === b0.id) || b0;
-        const curX = b0.x + (b1.x - b0.x) * factor;
-        const curY = b0.y + (b1.y - b0.y) * factor;
-        const curW = b0.w + (b1.w - b0.w) * factor;
-        const curH = b0.h + (b1.h - b0.h) * factor;
-
-        return {
-          x: Math.round(curX * 10) / 10,
-          y: Math.round(curY * 10) / 10,
-          w: Math.round(curW * 10) / 10,
-          h: Math.round(curH * 10) / 10,
-          label: `${b0.label} · ${b0.conf}%`,
-          isPrimary: false,
-          isAnomaly: true,
-        };
-      });
-
-      return [primaryBox, ...realAiBoxes];
-    }
-
-    // Seamless fallback while telemetry loads
-    const clipDuration = duration > 0 ? duration : 11.5;
-    const progress = Math.min(1, Math.max(0, (currentTime % clipDuration) / clipDuration));
-
-    const personBoxes = baseTracks.map((trk) => {
-      const curX = trk.startX + (trk.endX - trk.startX) * progress;
-      const curY = trk.startY + (trk.endY - trk.startY) * progress;
-
-      return {
-        x: curX,
-        y: curY,
-        w: trk.w,
-        h: trk.h,
-        label: `${trk.id} · ${trk.conf}%`,
-        isPrimary: false,
-        isAnomaly: true,
-      };
-    });
-
-    return [primaryBox, ...personBoxes];
-  }, [currentTime, duration, isCam1, epicenter, baseTracks, telemetry]);
 
   // Forensic perception metadata
   const forensicRule = isDispersal
@@ -554,75 +703,17 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </svg>
             )}
 
-            {/* AI Bounding Boxes Layer - Smooth Linear Tracking on Real Visible People */}
-            {showBoundingBoxes && (
-              <div
-                className="absolute inset-0 pointer-events-none z-13 transition-opacity duration-200"
-                style={{ opacity: Math.max(0.25, overlayOpacity / 100) }}
-              >
-                {dynamicBoundingBoxes.map((b, i) => (
-                  <div
-                    key={i}
-                    className={`absolute rounded-xs border transition-none ${
-                      b.isPrimary
-                        ? 'border-rose-400 bg-rose-500/15 shadow-[0_0_16px_rgba(244,63,94,0.4)]'
-                        : b.isAnomaly
-                        ? 'border-amber-400/90 bg-amber-500/12 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-                        : 'border-emerald-400/90 bg-emerald-500/10 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
-                    }`}
-                    style={{
-                      left: `${b.x}%`,
-                      top: `${b.y}%`,
-                      width: `${b.w}%`,
-                      height: `${b.h}%`,
-                    }}
-                  >
-                    {/* Top Pill Tag */}
-                    <span
-                      className={`absolute -top-4 left-0 text-[8.5px] font-mono px-1.5 py-0.5 rounded shadow-sm leading-none whitespace-nowrap backdrop-blur-md flex items-center gap-1 ${
-                        b.isPrimary
-                          ? 'bg-rose-600 text-white font-bold tracking-tight'
-                          : b.isAnomaly
-                          ? 'bg-slate-950/95 text-amber-300 border border-amber-500/40 font-semibold'
-                          : 'bg-slate-950/90 text-emerald-300 border border-emerald-500/40 font-medium'
-                      }`}
-                    >
-                      <span
-                        className={`w-1 h-1 rounded-full ${
-                          b.isPrimary
-                            ? 'bg-white'
-                            : b.isAnomaly
-                            ? 'bg-amber-400 animate-pulse'
-                            : 'bg-emerald-400'
-                        }`}
-                      />
-                      {b.label}
-                    </span>
-                    {/* Subtle corner brackets for CV aesthetic */}
-                    <div
-                      className={`absolute top-0 left-0 w-1.5 h-1.5 border-t-2 border-l-2 ${
-                        b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-                      }`}
-                    />
-                    <div
-                      className={`absolute top-0 right-0 w-1.5 h-1.5 border-t-2 border-r-2 ${
-                        b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-                      }`}
-                    />
-                    <div
-                      className={`absolute bottom-0 left-0 w-1.5 h-1.5 border-b-2 border-l-2 ${
-                        b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-                      }`}
-                    />
-                    <div
-                      className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b-2 border-r-2 ${
-                        b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-                      }`}
-                    />
-                  </div>
-                ))}
-              </div>
-            )}
+            {/* AI Bounding Boxes Layer - Isolated sub-component without parent re-renders */}
+            <BoundingBoxesLayer
+              videoRef={videoRef}
+              telemetry={telemetry}
+              isCam1={isCam1}
+              clusterSize={epicenter.clusterSize}
+              baseTracks={baseTracks}
+              duration={duration}
+              showBoundingBoxes={showBoundingBoxes}
+              overlayOpacity={overlayOpacity}
+            />
 
             {/* Anomaly Epicenter Marker & Glassmorphic HUD Tag */}
             {showReticle && (
@@ -682,57 +773,14 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </div>
             )}
 
-            {/* Video Playback Scrubber & Timeline Bar */}
-            <div className="absolute bottom-3 left-3 right-3 bg-black/75 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-xl z-25 flex items-center gap-3 text-white text-xs">
-              <button
-                type="button"
-                onClick={togglePlay}
-                className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
-                title={isPlaying ? 'Pause Video' : 'Play Video'}
-              >
-                {isPlaying ? (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                    <rect x="6" y="4" width="4" height="16" />
-                    <rect x="14" y="4" width="4" height="16" />
-                  </svg>
-                ) : (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                )}
-              </button>
-
-              <span className="text-[10px] font-mono text-slate-300 tabular-nums shrink-0">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-
-              {/* Timeline Track with Event Trigger Marker */}
-              <div className="relative flex-1 flex items-center h-4 group cursor-pointer">
-                {/* Event Trigger Milestone Marker */}
-                <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
-                  style={{ left: '60%' }}
-                >
-                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-semibold px-1 rounded bg-rose-600 text-white whitespace-nowrap shadow-xs">
-                    🔴 TRIGGER
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min={0}
-                  max={duration || 10}
-                  step={0.1}
-                  value={currentTime}
-                  onChange={handleSeek}
-                  className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500"
-                />
-              </div>
-
-              <span className="text-[10px] font-mono text-slate-400 shrink-0 hidden sm:inline">
-                {alert.cameraId.toUpperCase()} ({alert.zoneName})
-              </span>
-            </div>
+            {/* Video Playback Scrubber & Timeline Bar - Isolated native timeupdate sub-component */}
+            <TimelineScrubber
+              videoRef={videoRef}
+              duration={duration}
+              alert={alert}
+              isPlaying={isPlaying}
+              onTogglePlay={togglePlay}
+            />
           </div>
 
           {actionSuccess && (
