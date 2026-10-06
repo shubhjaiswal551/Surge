@@ -40,12 +40,18 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [overlayOpacity, setOverlayOpacity] = useState(80);
 
-  // High-frequency 60 FPS animation ticker for silky smooth box tracking
+  // Smooth, throttled animation ticker to prevent browser thread congestion and video decoder stutter
   useEffect(() => {
     let animId: number;
+    let lastTime = -1;
     const tick = () => {
       if (videoRef.current && !videoRef.current.paused) {
-        setCurrentTime(videoRef.current.currentTime);
+        const cur = videoRef.current.currentTime;
+        // Update at ~20-25 FPS (~45ms) so React re-renders do not starve the browser's hardware video decoder
+        if (Math.abs(cur - lastTime) >= 0.045) {
+          lastTime = cur;
+          setCurrentTime(cur);
+        }
       }
       animId = requestAnimationFrame(tick);
     };
@@ -59,13 +65,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const videoSrc = alert.snapshotUrl || (isCam1
     ? '/12269404_2320_1080_30fps.mp4'
     : '/5287069-sd_960_540_30fps.mp4');
-
-  // Video playback handlers
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -389,7 +388,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 loop
                 muted
                 playsInline
-                onTimeUpdate={handleTimeUpdate}
+                preload="auto"
                 onLoadedMetadata={handleLoadedMetadata}
                 className="w-full h-full object-cover"
               />
