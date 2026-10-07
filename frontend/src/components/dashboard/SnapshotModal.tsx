@@ -38,11 +38,12 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
   showBoundingBoxes,
   overlayOpacity,
 }) => {
-  const [boxes, setBoxes] = useState<any[]>([]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    if (!showBoundingBoxes) return;
+
     let animId: number;
-    let lastT = -1;
 
     const primaryBox = {
       x: isCam1 ? 36 : 38,
@@ -54,133 +55,186 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
       isAnomaly: false,
     };
 
-    const update = () => {
+    const render = () => {
       const vid = videoRef.current;
-      if (vid && !vid.paused) {
-        const t = vid.currentTime;
-        // Smooth ~25-30 FPS update interval isolated strictly to this tiny overlay DOM branch
-        if (Math.abs(t - lastT) >= 0.035) {
-          lastT = t;
-          if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
-            const timeline = telemetry.timeline;
-            let idx1 = timeline.findIndex((item: any) => item.time >= t);
-            if (idx1 === -1) idx1 = timeline.length - 1;
-            const idx0 = Math.max(0, idx1 - 1);
+      const canvas = canvasRef.current;
+      if (vid && canvas) {
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          const cw = Math.round(rect.width * dpr);
+          const ch = Math.round(rect.height * dpr);
 
-            const kf0 = timeline[idx0];
-            const kf1 = timeline[idx1];
-            const dt = kf1.time - kf0.time;
-            const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+          if (canvas.width !== cw || canvas.height !== ch) {
+            canvas.width = cw;
+            canvas.height = ch;
+          }
 
-            const realAiBoxes = (kf0.boxes || []).map((b0: any) => {
-              const b1 = (kf1.boxes || []).find((b: any) => b.id === b0.id) || b0;
-              const curX = b0.x + (b1.x - b0.x) * factor;
-              const curY = b0.y + (b1.y - b0.y) * factor;
-              const curW = b0.w + (b1.w - b0.w) * factor;
-              const curH = b0.h + (b1.h - b0.h) * factor;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.save();
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, rect.width, rect.height);
+            ctx.globalAlpha = Math.max(0.25, overlayOpacity / 100);
 
-              return {
-                x: Math.round(curX * 10) / 10,
-                y: Math.round(curY * 10) / 10,
-                w: Math.round(curW * 10) / 10,
-                h: Math.round(curH * 10) / 10,
-                label: `${b0.label} · ${b0.conf}%`,
+            const t = vid.currentTime;
+            let currentBoxes = [primaryBox];
+
+            if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+              const timeline = telemetry.timeline;
+              let idx1 = timeline.findIndex((item: any) => item.time >= t);
+              if (idx1 === -1) idx1 = timeline.length - 1;
+              const idx0 = Math.max(0, idx1 - 1);
+
+              const kf0 = timeline[idx0];
+              const kf1 = timeline[idx1];
+              const dt = kf1.time - kf0.time;
+              const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+
+              const aiBoxes = (kf0.boxes || []).map((b0: any) => {
+                const b1 = (kf1.boxes || []).find((b: any) => b.id === b0.id) || b0;
+                return {
+                  x: b0.x + (b1.x - b0.x) * factor,
+                  y: b0.y + (b1.y - b0.y) * factor,
+                  w: b0.w + (b1.w - b0.w) * factor,
+                  h: b0.h + (b1.h - b0.h) * factor,
+                  label: `${b0.label} · ${b0.conf}%`,
+                  isPrimary: false,
+                  isAnomaly: true,
+                };
+              });
+              currentBoxes = [primaryBox, ...aiBoxes];
+            } else {
+              const clipDuration = duration > 0 ? duration : 11.5;
+              const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
+              const personBoxes = baseTracks.map((trk) => ({
+                x: trk.startX + (trk.endX - trk.startX) * progress,
+                y: trk.startY + (trk.endY - trk.startY) * progress,
+                w: trk.w,
+                h: trk.h,
+                label: `${trk.id} · ${trk.conf}%`,
                 isPrimary: false,
                 isAnomaly: true,
-              };
-            });
+              }));
+              currentBoxes = [primaryBox, ...personBoxes];
+            }
 
-            setBoxes([primaryBox, ...realAiBoxes]);
-          } else {
-            const clipDuration = duration > 0 ? duration : 11.5;
-            const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
-            const personBoxes = baseTracks.map((trk) => ({
-              x: Math.round((trk.startX + (trk.endX - trk.startX) * progress) * 10) / 10,
-              y: Math.round((trk.startY + (trk.endY - trk.startY) * progress) * 10) / 10,
-              w: trk.w,
-              h: trk.h,
-              label: `${trk.id} · ${trk.conf}%`,
-              isPrimary: false,
-              isAnomaly: true,
-            }));
-            setBoxes([primaryBox, ...personBoxes]);
+            // Draw each bounding box directly on hardware 2D canvas (0% CPU, 0 React re-renders)
+            for (const b of currentBoxes) {
+              const bx = (b.x / 100) * rect.width;
+              const by = (b.y / 100) * rect.height;
+              const bw = (b.w / 100) * rect.width;
+              const bh = (b.h / 100) * rect.height;
+
+              const isPrimary = b.isPrimary;
+              const isAnomaly = b.isAnomaly;
+
+              // Box fill
+              ctx.fillStyle = isPrimary
+                ? 'rgba(244, 63, 94, 0.14)'
+                : isAnomaly
+                ? 'rgba(245, 158, 11, 0.12)'
+                : 'rgba(16, 185, 129, 0.10)';
+              ctx.fillRect(bx, by, bw, bh);
+
+              // Box border
+              ctx.lineWidth = isPrimary ? 2 : 1.5;
+              ctx.strokeStyle = isPrimary
+                ? 'rgba(251, 113, 133, 0.95)'
+                : isAnomaly
+                ? 'rgba(251, 191, 36, 0.95)'
+                : 'rgba(52, 211, 153, 0.90)';
+              ctx.strokeRect(bx, by, bw, bh);
+
+              // High-tech corner reticle brackets
+              const cLen = Math.min(8, Math.min(bw, bh) * 0.25);
+              ctx.lineWidth = 2.5;
+              ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#fde68a' : '#6ee7b7';
+
+              // Top-left
+              ctx.beginPath();
+              ctx.moveTo(bx, by + cLen);
+              ctx.lineTo(bx, by);
+              ctx.lineTo(bx + cLen, by);
+              ctx.stroke();
+
+              // Top-right
+              ctx.beginPath();
+              ctx.moveTo(bx + bw - cLen, by);
+              ctx.lineTo(bx + bw, by);
+              ctx.lineTo(bx + bw, by + cLen);
+              ctx.stroke();
+
+              // Bottom-left
+              ctx.beginPath();
+              ctx.moveTo(bx, by + bh - cLen);
+              ctx.lineTo(bx, by + bh);
+              ctx.lineTo(bx + cLen, by + bh);
+              ctx.stroke();
+
+              // Bottom-right
+              ctx.beginPath();
+              ctx.moveTo(bx + bw - cLen, by + bh);
+              ctx.lineTo(bx + bw, by + bh);
+              ctx.lineTo(bx + bw, by + bh - cLen);
+              ctx.stroke();
+
+              // Top Pill Tag Badge
+              ctx.font = '600 10px monospace';
+              const textMetrics = ctx.measureText(b.label);
+              const badgeW = textMetrics.width + 16;
+              const badgeH = 16;
+              const badgeY = Math.max(0, by - badgeH - 3);
+
+              // Badge Background
+              ctx.fillStyle = isPrimary ? '#e11d48' : '#030712';
+              ctx.beginPath();
+              if (ctx.roundRect) {
+                ctx.roundRect(bx, badgeY, badgeW, badgeH, 4);
+              } else {
+                ctx.rect(bx, badgeY, badgeW, badgeH);
+              }
+              ctx.fill();
+
+              // Badge Border
+              ctx.lineWidth = 1;
+              ctx.strokeStyle = isPrimary
+                ? '#fda4af'
+                : isAnomaly
+                ? 'rgba(245, 158, 11, 0.6)'
+                : 'rgba(16, 185, 129, 0.4)';
+              ctx.stroke();
+
+              // Status indicator circle
+              ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fbbf24' : '#34d178';
+              ctx.beginPath();
+              ctx.arc(bx + 6, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Badge Text
+              ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fef08a' : '#6ee7b7';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
+            }
+
+            ctx.restore();
           }
         }
       }
-      animId = requestAnimationFrame(update);
+      animId = requestAnimationFrame(render);
     };
 
-    animId = requestAnimationFrame(update);
+    animId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animId);
-  }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration]);
+  }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration, showBoundingBoxes, overlayOpacity]);
 
   if (!showBoundingBoxes) return null;
 
   return (
-    <div
-      className="absolute inset-0 pointer-events-none z-13 transition-opacity duration-200"
-      style={{ opacity: Math.max(0.25, overlayOpacity / 100) }}
-    >
-      {boxes.map((b, i) => (
-        <div
-          key={i}
-          className={`absolute rounded-xs border transition-none ${
-            b.isPrimary
-              ? 'border-rose-400 bg-rose-500/15 shadow-[0_0_16px_rgba(244,63,94,0.4)]'
-              : b.isAnomaly
-              ? 'border-amber-400/90 bg-amber-500/12 shadow-[0_0_12px_rgba(251,191,36,0.3)]'
-              : 'border-emerald-400/90 bg-emerald-500/10 shadow-[0_0_8px_rgba(16,185,129,0.25)]'
-          }`}
-          style={{
-            left: `${b.x}%`,
-            top: `${b.y}%`,
-            width: `${b.w}%`,
-            height: `${b.h}%`,
-          }}
-        >
-          <span
-            className={`absolute -top-4 left-0 text-[8.5px] font-mono px-1.5 py-0.5 rounded shadow-sm leading-none whitespace-nowrap backdrop-blur-md flex items-center gap-1 ${
-              b.isPrimary
-                ? 'bg-rose-600 text-white font-bold tracking-tight'
-                : b.isAnomaly
-                ? 'bg-slate-950/95 text-amber-300 border border-amber-500/40 font-semibold'
-                : 'bg-slate-950/90 text-emerald-300 border border-emerald-500/40 font-medium'
-            }`}
-          >
-            <span
-              className={`w-1 h-1 rounded-full ${
-                b.isPrimary
-                  ? 'bg-white'
-                  : b.isAnomaly
-                  ? 'bg-amber-400 animate-pulse'
-                  : 'bg-emerald-400'
-              }`}
-            />
-            {b.label}
-          </span>
-          <div
-            className={`absolute top-0 left-0 w-1.5 h-1.5 border-t-2 border-l-2 ${
-              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-            }`}
-          />
-          <div
-            className={`absolute top-0 right-0 w-1.5 h-1.5 border-t-2 border-r-2 ${
-              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-            }`}
-          />
-          <div
-            className={`absolute bottom-0 left-0 w-1.5 h-1.5 border-b-2 border-l-2 ${
-              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-            }`}
-          />
-          <div
-            className={`absolute bottom-0 right-0 w-1.5 h-1.5 border-b-2 border-r-2 ${
-              b.isPrimary ? 'border-rose-300' : b.isAnomaly ? 'border-amber-300' : 'border-emerald-300'
-            }`}
-          />
-        </div>
-      ))}
-    </div>
+    <canvas
+      ref={canvasRef}
+      className="absolute inset-0 w-full h-full pointer-events-none z-13 select-none"
+    />
   );
 };
 

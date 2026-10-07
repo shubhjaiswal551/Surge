@@ -11,7 +11,7 @@ checked off (see `implementationPlan.md` for why the ordering matters).
 - [x] Train YOLOv8 detector (demo config: yolov8n, 416px, ~1200 img subset)
 - [x] Validate (mAP50 / mAP50-95 / precision / recall)
 - [x] Export weights (`best.pt`, `best.onnx`)
-- [ ] (Later, when scaling up) Retrain on full dataset at higher imgsz/epochs
+- [x] Retrain on full dataset at higher imgsz/epochs (YOLOv8s, 640px, full 19.3k CrowdHuman, 71.0% mAP50)
 
 ## Phase 2 — Tracking ✅
 

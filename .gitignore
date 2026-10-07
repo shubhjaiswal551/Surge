@@ -40,6 +40,11 @@ backend/venv/
 *.pt
 *.onnx
 runs/
+ml/detection/runs/
+ml/data/
+ml/data_crowdhuman/
+crowdhuman-1/
+ml/detection/overnight_train.log
 *.db
 backend/snapshots/*
 !backend/snapshots/.gitkeep
