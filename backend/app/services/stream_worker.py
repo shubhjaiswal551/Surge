@@ -41,8 +41,9 @@ os.makedirs(SNAPSHOTS_DIR, exist_ok=True)
 class StreamWorker:
     def __init__(self):
         self.connected_clients: Set[WebSocket] = set()
-        self.tracker: Optional[ByteTrackPipeline] = None
-        self.track_history: Dict[int, List[Tuple[float, float]]] = {}
+        self.trackers: Dict[str, ByteTrackPipeline] = {}
+        self.smoothed_headcounts: Dict[str, float] = {}
+        self.track_history: Dict[str, List[Tuple[float, float]]] = {}
         self.max_history = 15
         self.is_running = False
         self.anomaly_counter: Dict[str, int] = {}
@@ -56,8 +57,9 @@ class StreamWorker:
         self.connected_clients.discard(ws)
         logger.info(f"Client disconnected. Active clients: {len(self.connected_clients)}")
 
-    def _ensure_tracker(self):
-        if self.tracker is None:
+    def _get_tracker(self, cam_key: str) -> ByteTrackPipeline:
+        """Returns or lazily initializes a dedicated, state-isolated ByteTrack instance for the given camera channel."""
+        if cam_key not in self.trackers:
             if ByteTrackPipeline is None:
                 raise RuntimeError("ByteTrackPipeline/PyTorch is not available in current environment")
             weights = "ml/detection/weights/best.pt"
@@ -65,7 +67,17 @@ class StreamWorker:
                 weights = "backend/models/best.pt"
             if not os.path.exists(weights):
                 weights = "yolov8n.pt"
-            self.tracker = ByteTrackPipeline(weights_path=weights, imgsz=640)
+            logger.info(f"Initializing dedicated ByteTrackPipeline for camera {cam_key} (weights={weights})")
+            self.trackers[cam_key] = ByteTrackPipeline(weights_path=weights, imgsz=640)
+        return self.trackers[cam_key]
+
+    def _ensure_tracker(self):
+        """Pre-checks that ML libraries and weights exist."""
+        if ByteTrackPipeline is None:
+            raise RuntimeError("ByteTrackPipeline/PyTorch is not available in current environment")
+        weights = "ml/detection/weights/best.pt"
+        if not os.path.exists(weights) and not os.path.exists("backend/models/best.pt") and not os.path.exists("yolov8n.pt"):
+            raise FileNotFoundError("No detection weights found")
 
     async def broadcast_payload(self, payload: dict):
         if not self.connected_clients:
@@ -91,8 +103,10 @@ class StreamWorker:
         logger.info("SafeCrowd Cloud Simulation Loop is active (RAM optimized, <60MB)")
 
         cam_state = {
-            "cam-001": {"headcount": 296, "flow_x": 0.8, "flow_y": -0.2, "speed": 1.4},
-            "cam-002": {"headcount": 22, "flow_x": -0.3, "flow_y": 0.9, "speed": 1.1},
+            "cam-001": {"headcount": 22, "flow_x": 0.8, "flow_y": -0.2, "speed": 1.2},
+            "cam-002": {"headcount": 8, "flow_x": -0.3, "flow_y": 0.9, "speed": 1.1},
+            "cam-003": {"headcount": 185, "flow_x": 0.4, "flow_y": 0.5, "speed": 0.9},
+            "cam-004": {"headcount": 20, "flow_x": -0.4, "flow_y": -0.3, "speed": 1.3},
         }
 
         tick = 0
@@ -107,13 +121,19 @@ class StreamWorker:
 
             for stream in streams:
                 cam_key = stream["cameraId"]
-                st = cam_state.setdefault(cam_key, {"headcount": 50, "flow_x": 0.5, "flow_y": 0.5, "speed": 1.2})
+                st = cam_state.setdefault(cam_key, {"headcount": 25, "flow_x": 0.5, "flow_y": 0.5, "speed": 1.2})
 
-                # Organic crowd fluctuations reflecting video footages
+                # Organic crowd fluctuations reflecting ground-truth video footages
                 if cam_key == "cam-001":
-                    st["headcount"] = max(265, min(325, st["headcount"] + random.choice([-2, -1, 0, 1, 2])))
+                    st["headcount"] = max(16, min(28, st["headcount"] + random.choice([-1, 0, 1])))
+                elif cam_key == "cam-002":
+                    st["headcount"] = max(3, min(14, st["headcount"] + random.choice([-1, 0, 1])))
+                elif cam_key == "cam-003":
+                    st["headcount"] = max(165, min(215, st["headcount"] + random.choice([-2, -1, 0, 1, 2])))
+                elif cam_key == "cam-004":
+                    st["headcount"] = max(15, min(26, st["headcount"] + random.choice([-1, 0, 1])))
                 else:
-                    st["headcount"] = max(14, min(34, st["headcount"] + random.choice([-1, 0, 1])))
+                    st["headcount"] = max(10, min(50, st["headcount"] + random.choice([-1, 0, 1])))
                 st["speed"] = max(0.4, min(3.5, round(st["speed"] + random.uniform(-0.1, 0.1), 2)))
 
                 headcount = st["headcount"]
@@ -138,13 +158,18 @@ class StreamWorker:
                 event_type = None
                 severity = 1
 
-                if (tick % 40 == 0) and cam_key == "cam-001":
+                if (tick % 40 == 0) and cam_key == "cam-003":
                     is_anomaly = True
                     event_type = "surge"
                     severity = 4
-                    density_val = round(density_val * 1.5, 2)
+                    density_val = round(density_val * 1.3, 2)
                     vel_variance = 4.2
-                elif (tick % 60 == 0) and cam_key == "cam-002":
+                elif (tick % 60 == 0) and cam_key == "cam-001":
+                    is_anomaly = True
+                    event_type = "chokepoint"
+                    severity = 3
+                    vel_variance = 3.5
+                elif (tick % 50 == 0) and cam_key == "cam-002":
                     is_anomaly = True
                     event_type = "bottleneck"
                     severity = 3
@@ -246,24 +271,45 @@ class StreamWorker:
 
             await asyncio.sleep(1.0)
 
+    @staticmethod
+    def _resolve_stream_source(raw_url: str, default_path: str = "") -> str:
+        if not raw_url:
+            raw_url = default_path
+        if raw_url.startswith(("rtsp://", "http://", "https://")):
+            return raw_url
+
+        clean = raw_url.lstrip("/\\")
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+        candidates = [
+            raw_url,
+            clean,
+            os.path.join(repo_root, clean),
+            os.path.join(repo_root, "frontend", "public", clean),
+            os.path.join(repo_root, "frontend", "public", os.path.basename(raw_url)),
+            os.path.join("frontend", "public", clean),
+            os.path.join("frontend", "public", os.path.basename(raw_url)),
+            default_path,
+            os.path.join(repo_root, default_path),
+        ]
+        for c in candidates:
+            if c and os.path.isfile(c):
+                return os.path.abspath(c)
+        return raw_url
+
     async def run_pipeline_loop(self):
         """Continuous background worker running inference on camera streams, or cloud simulation."""
-        streams = [
-            {
-                "cameraId": "cam-001",
-                "zone_id": "zone-001",
-                "zoneName": "North Transit Corridor (Chokepoint)",
-                "default_path": "frontend/public/12269404_2320_1080_30fps.mp4",
-                "area_sq_m": 50.0,
-            },
-            {
-                "cameraId": "cam-002",
-                "zone_id": "zone-002",
-                "zoneName": "Central Concourse (Multi-Directional)",
-                "default_path": "frontend/public/5287069-sd_960_540_30fps.mp4",
-                "area_sq_m": 70.0,
-            },
-        ]
+        streams = []
+        for cid, cam in CAMERAS_DB.items():
+            if not cam.get("is_active", True):
+                continue
+            zone = next((z for z in ZONES_DB.values() if z.get("camera_id") == cid), None)
+            streams.append({
+                "cameraId": cid,
+                "zone_id": zone["id"] if zone else f"zone-{cid}",
+                "zoneName": zone.get("name", cam.get("name", f"Surveillance Zone {cid}")),
+                "default_path": cam.get("rtsp_url", ""),
+                "area_sq_m": float(zone.get("area_sq_m", 50.0)) if zone else 50.0,
+            })
 
         demo_env = os.getenv("DEMO_MODE", "").lower()
         if demo_env in ("true", "1", "yes"):
@@ -281,17 +327,18 @@ class StreamWorker:
         caps: Dict[str, cv2.VideoCapture] = {}
         for s in streams:
             cid = s["cameraId"]
-            url = CAMERAS_DB.get(cid, {}).get("rtsp_url", s["default_path"])
-            cap = cv2.VideoCapture(url)
+            raw_url = CAMERAS_DB.get(cid, {}).get("rtsp_url", s["default_path"])
+            resolved_url = self._resolve_stream_source(raw_url, s["default_path"])
+            cap = cv2.VideoCapture(resolved_url)
             if not cap.isOpened():
-                logger.warning(f"Stream source for {cid} ({url}) not accessible. Falling back to cloud simulation mode.")
+                logger.warning(f"Stream source for {cid} ({resolved_url}) not accessible. Falling back to cloud simulation mode.")
                 await self.run_simulation_loop(streams)
                 return
             caps[cid] = cap
 
         frame_indices = {s["cameraId"]: 0 for s in streams}
         self.is_running = True
-        logger.info("StreamWorker initialized multi-camera feeds for cam-001 and cam-002")
+        logger.info("StreamWorker initialized multi-camera feeds for cam-001 through cam-004 with live model inference")
 
         while self.is_running:
             if not self.connected_clients:
@@ -305,7 +352,9 @@ class StreamWorker:
                 ret, frame = cap.read()
                 if not ret:
                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    continue
+                    ret, frame = cap.read()
+                    if not ret:
+                        continue
 
                 frame_indices[cam_key] += 1
                 now_iso = datetime.utcnow().isoformat() + "Z"
@@ -315,11 +364,47 @@ class StreamWorker:
                 frame_resized = cv2.resize(frame, (960, 540))
                 rh, rw = frame_resized.shape[:2]
 
-                trajectories, _ = self.tracker.track_frame(
-                    frame_resized, frame_idx=frame_indices[cam_key], timestamp=now_ts
+                tracker = self._get_tracker(cam_key)
+                trajectories, _ = await asyncio.to_thread(
+                    tracker.track_frame,
+                    frame_resized,
+                    frame_indices[cam_key],
+                    now_ts,
                 )
 
-                headcount = len(trajectories)
+                zone_cfg = ZONES_DB.get(stream["zone_id"], {})
+                zone_poly = zone_cfg.get("polygon_coords")
+
+                # If calibrated zone polygon is active, count real model detections inside the zone
+                if zone_poly and len(zone_poly) >= 3:
+                    is_normalized = all(0.0 <= pt[0] <= 1.0 and 0.0 <= pt[1] <= 1.0 for pt in zone_poly)
+                    is_percent = not is_normalized and all(0.0 <= pt[0] <= 100.0 and 0.0 <= pt[1] <= 100.0 for pt in zone_poly)
+                    poly_pts = []
+                    for pt in zone_poly:
+                        if is_normalized:
+                            poly_pts.append((float(pt[0]) * rw, float(pt[1]) * rh))
+                        elif is_percent:
+                            poly_pts.append(((float(pt[0]) / 100.0) * rw, (float(pt[1]) / 100.0) * rh))
+                        else:
+                            poly_pts.append((float(pt[0]), float(pt[1])))
+                    np_poly = np.array(poly_pts, dtype=np.int32)
+
+                    zone_trajectories = [
+                        t for t in trajectories
+                        if cv2.pointPolygonTest(np_poly, (float(t["center"][0]), float(t["center"][1])), False) >= 0
+                    ]
+                    raw_zone_count = len(zone_trajectories)
+                else:
+                    raw_zone_count = len(trajectories)
+
+                raw_fov_count = len(trajectories)
+
+                # Fix 3: Temporal EMA Smoothing (Exponential Moving Average) to eliminate 1-2 frame occlusion flicker
+                prev_smoothed = self.smoothed_headcounts.get(cam_key, float(raw_zone_count))
+                alpha = 0.25  # Responsive within ~0.4s while absorbing single-frame dropouts
+                smoothed_val = alpha * float(raw_zone_count) + (1.0 - alpha) * prev_smoothed
+                self.smoothed_headcounts[cam_key] = smoothed_val
+                headcount = int(round(smoothed_val))
                 bboxes = [t["bbox"] for t in trajectories]
                 active_ids = {t["track_id"] for t in trajectories}
                 velocities: List[Tuple[float, float]] = []
@@ -447,6 +532,8 @@ class StreamWorker:
                             "flow_vector": list(flow_vec),
                             "velocity_variance": vel_variance,
                             "headcount": headcount,
+                            "zone_headcount": headcount,
+                            "total_fov_headcount": raw_fov_count,
                             "avg_speed": avg_speed,
                         },
                         "snapshot_url": snapshot_rel_url,
@@ -469,6 +556,8 @@ class StreamWorker:
                         "flow_vector": list(flow_vec),
                         "velocity_variance": vel_variance,
                         "headcount": headcount,
+                        "zone_headcount": headcount,
+                        "total_fov_headcount": raw_fov_count,
                         "avg_speed": avg_speed,
                         "heatmap": heatmap,
                     },

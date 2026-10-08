@@ -15,12 +15,12 @@ ZONES_DB: Dict[str, Dict] = {
     "zone-001": {
         "id": "zone-001",
         "camera_id": "cam-001",
-        "name": "Main Entrance Gate",
+        "name": "North Transit Corridor (Chokepoint)",
         "polygon_coords": [(50.0, 50.0), (900.0, 50.0), (900.0, 500.0), (50.0, 500.0)],
         "area_sq_m": 45.0,
         "thresholds": {
-            "density_high": 3.0,
-            "density_critical": 5.0,
+            "density_high": 2.5,
+            "density_critical": 4.5,
             "variance_surge": 3.5,
             "bottleneck_speed_max": 0.8,
         },
@@ -28,9 +28,35 @@ ZONES_DB: Dict[str, Dict] = {
     "zone-002": {
         "id": "zone-002",
         "camera_id": "cam-002",
-        "name": "Central Courtyard",
+        "name": "Central Concourse (Multi-Directional)",
         "polygon_coords": [(30.0, 30.0), (800.0, 30.0), (800.0, 480.0), (30.0, 480.0)],
         "area_sq_m": 60.0,
+        "thresholds": {
+            "density_high": 2.5,
+            "density_critical": 4.5,
+            "variance_surge": 3.0,
+            "bottleneck_speed_max": 0.9,
+        },
+    },
+    "zone-003": {
+        "id": "zone-003",
+        "camera_id": "cam-003",
+        "name": "Main Terminal Gate (Dense Scramble)",
+        "polygon_coords": [(50.0, 50.0), (900.0, 50.0), (900.0, 500.0), (50.0, 500.0)],
+        "area_sq_m": 50.0,
+        "thresholds": {
+            "density_high": 3.0,
+            "density_critical": 5.0,
+            "variance_surge": 3.5,
+            "bottleneck_speed_max": 0.8,
+        },
+    },
+    "zone-004": {
+        "id": "zone-004",
+        "camera_id": "cam-004",
+        "name": "Central Plaza Courtyard",
+        "polygon_coords": [(30.0, 30.0), (800.0, 30.0), (800.0, 480.0), (30.0, 480.0)],
+        "area_sq_m": 70.0,
         "thresholds": {
             "density_high": 2.8,
             "density_critical": 4.5,

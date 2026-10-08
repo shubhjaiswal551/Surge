@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { toggleSound, isSoundEnabled } from '../../lib/sound';
 
+import { useCrowdContext } from '../../context/CrowdContext';
+
 interface StatusBarProps {
-  activeAlertCount: number;
+  activeAlertCount?: number;
   onOpenNotifications?: () => void;
 }
 
@@ -10,6 +12,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   activeAlertCount,
   onOpenNotifications,
 }) => {
+  const { cameras, activeFeedsCount, unacknowledgedAlertsCount, isDemoMode } = useCrowdContext();
   const [now, setNow] = useState(new Date());
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
 
@@ -23,11 +26,12 @@ const StatusBar: React.FC<StatusBarProps> = ({
     setSoundOn(next);
   };
 
-  const hasAlerts = activeAlertCount > 0;
+  const effectiveAlertCount = typeof activeAlertCount === 'number' ? activeAlertCount : unacknowledgedAlertsCount;
+  const hasAlerts = effectiveAlertCount > 0;
   const systemStatusLabel = hasAlerts
-    ? activeAlertCount === 1
+    ? effectiveAlertCount === 1
       ? '1 Unresolved Incident'
-      : `${activeAlertCount} Unresolved Incidents`
+      : `${effectiveAlertCount} Unresolved Incidents`
     : 'All Systems Nominal';
 
   const dateStr = now.toLocaleDateString(undefined, {
@@ -43,7 +47,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
   });
 
   return (
-    <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-slate-200/70 bg-white/75 backdrop-blur-xl sticky top-0 z-30 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
+    <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-slate-200/70 bg-white sticky top-0 z-30 shadow-xs">
       {/* Left: System Status Pill & Telemetry Pips */}
       <div className="flex items-center gap-3">
         <div
@@ -61,10 +65,16 @@ const StatusBar: React.FC<StatusBarProps> = ({
           <span>{systemStatusLabel}</span>
         </div>
 
+        {isDemoMode && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            Demo data
+          </span>
+        )}
+
         <div className="hidden lg:flex items-center gap-2.5 text-xs text-slate-500 font-medium">
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/60 shadow-sm text-[11px]">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-            <span>2 / 2 Feeds Online</span>
+            <span>{activeFeedsCount} / {cameras.length} Feeds Online</span>
           </span>
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/60 shadow-sm text-[11px]">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -75,7 +85,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
               <line x1="9" y1="20" x2="9" y2="23" />
               <line x1="15" y1="20" x2="15" y2="23" />
             </svg>
-            <span>YOLOv8 Engine · 18ms Inference</span>
+            <span>YOLOv8s Pipeline · 32ms</span>
           </span>
         </div>
       </div>
@@ -138,9 +148,9 @@ const StatusBar: React.FC<StatusBarProps> = ({
             <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
             <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
           </svg>
-          {activeAlertCount > 0 && (
+          {effectiveAlertCount > 0 && (
             <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-white shadow-sm">
-              {activeAlertCount > 99 ? '99+' : activeAlertCount}
+              {effectiveAlertCount > 99 ? '99+' : effectiveAlertCount}
             </span>
           )}
         </button>

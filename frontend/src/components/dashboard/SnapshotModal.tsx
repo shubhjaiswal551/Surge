@@ -396,9 +396,12 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   if (!alert) return null;
 
   const isCam1 = alert.cameraId === 'cam-001';
-  const videoSrc = alert.snapshotUrl || (isCam1
-    ? '/corridor_chokepoint.webm'
-    : '/concourse_crossing.webm');
+  const videoSrc = alert.snapshotUrl || (
+    alert.cameraId === 'cam-001' ? '/corridor_chokepoint.webm' :
+    alert.cameraId === 'cam-002' ? '/concourse_crossing.webm' :
+    alert.cameraId === 'cam-003' ? '/12269404_2320_1080_30fps.mp4' :
+    '/5287069-sd_960_540_30fps.mp4'
+  );
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -493,7 +496,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
       `${API_BASE_URL}/cameras/${alert.cameraId}/telemetry`,
       videoSrc.includes('corridor_chokepoint') ? '/telemetry_corridor.json' :
       videoSrc.includes('concourse_crossing') ? '/telemetry_concourse.json' :
-      isCam1 ? '/telemetry_cam001.json' : '/telemetry_cam002.json',
+      videoSrc.includes('12269404') ? '/telemetry_cam001.json' :
+      videoSrc.includes('5287069') ? '/telemetry_cam002.json' :
+      isCam1 ? '/telemetry_corridor.json' : '/telemetry_concourse.json',
     ].filter(Boolean) as string[];
 
     let isMounted = true;

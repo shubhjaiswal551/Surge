@@ -116,5 +116,7 @@ export type CameraState = {
   rtspUrl?: string;
   isActive?: boolean;
   zoneId?: string;
+  areaSqM?: number;
   polygonCoords?: [number, number][];
+  metrics?: MetricsData;
 };

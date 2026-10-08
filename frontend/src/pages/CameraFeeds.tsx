@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Sidebar from '../components/dashboard/Sidebar';
 import StatusBar from '../components/dashboard/StatusBar';
 import CameraPanel from '../components/dashboard/CameraPanel';
@@ -23,32 +24,48 @@ type LayoutMode = 'grid' | 'hero' | 'focus' | 'dense';
 type FilterStatus = 'all' | 'anomaly' | 'high_critical' | 'normal';
 type SortOption = 'default' | 'headcount_desc' | 'headcount_asc' | 'name';
 
-function cleanVideoUrl(url?: string, cameraId?: string): string {
-  const fallback =
-    cameraId === 'cam-001'
-      ? '/12269404_2320_1080_30fps.mp4'
-      : '/5287069-sd_960_540_30fps.mp4';
-  if (!url) return fallback;
-
+function cleanVideoUrl(url?: string, _cameraId?: string): string {
+  if (!url) return '';
   let cleaned = url.replace(/^frontend\/public\//, '/').replace(/^public\//, '/');
-  if (cleaned.startsWith('rtsp://')) return fallback;
-  if (!cleaned.startsWith('/') && !cleaned.startsWith('http://') && !cleaned.startsWith('https://')) {
+  if (cleaned.startsWith('rtsp://') || cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
+    return cleaned;
+  }
+  if (!cleaned.startsWith('/')) {
     cleaned = '/' + cleaned;
   }
   return cleaned;
 }
+
+const getCameraArea = (cid: string): number => {
+  if (cid === 'cam-001') return 45.0;
+  if (cid === 'cam-002') return 60.0;
+  if (cid === 'cam-003') return 50.0;
+  return 70.0;
+};
 
 const CameraFeeds: React.FC = () => {
   const [cameras, setCameras] = useState<CameraState[]>(() => getInitialCameras());
   const [heatmaps, setHeatmaps] = useState<CameraHeatmap[]>(() => getInitialHeatmaps());
   const [alerts, setAlerts] = useState<Alert[]>([]);
   
+  const [searchParams] = useSearchParams();
+  const paramFocus = searchParams.get('focus');
+
   // Layout and Display Controls
-  const [layout, setLayout] = useState<LayoutMode>('grid');
-  const [focusId, setFocusId] = useState<string>('cam-001');
-  const [heroId, setHeroId] = useState<string>('cam-001');
+  const [layout, setLayout] = useState<LayoutMode>(paramFocus ? 'focus' : 'grid');
+  const [focusId, setFocusId] = useState<string>(paramFocus || 'cam-001');
+  const [heroId, setHeroId] = useState<string>(paramFocus || 'cam-001');
   const [isWallMode, setIsWallMode] = useState<boolean>(false);
   const [isSocDark, setIsSocDark] = useState<boolean>(false);
+
+  useEffect(() => {
+    const target = searchParams.get('focus');
+    if (target) {
+      setFocusId(target);
+      setHeroId(target);
+      setLayout('focus');
+    }
+  }, [searchParams]);
 
   // Audio Alarm Dispatcher State
   const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
@@ -96,8 +113,12 @@ const CameraFeeds: React.FC = () => {
                   cameraId: bCam.id,
                   zoneName: bCam.name || bCam.location || 'Surveillance Zone',
                   description: bCam.location || 'Optical RTSP Endpoint',
-                  headcount: existing?.headcount ?? (bCam.id === 'cam-001' ? 295 : 22),
-                  density: existing?.density ?? (bCam.id === 'cam-001' ? 'critical' : 'low'),
+                  headcount:
+                    existing?.headcount ??
+                    (bCam.id === 'cam-003' ? 185 : bCam.id === 'cam-001' ? 22 : bCam.id === 'cam-004' ? 20 : 8),
+                  density:
+                    existing?.density ??
+                    (bCam.id === 'cam-003' ? 'high' : bCam.id === 'cam-001' ? 'moderate' : 'low'),
                   flowDirection: existing?.flowDirection ?? 90,
                   lastUpdated: existing?.lastUpdated ?? new Date().toISOString(),
                   lastUpdatedAgo: existing?.lastUpdatedAgo ?? 0,
@@ -807,7 +828,7 @@ const CameraFeeds: React.FC = () => {
                         videoSrc={cleanVideoUrl(heroCam.rtspUrl, heroCam.cameraId)}
                         heatmapGrid={heatmaps.find((h) => h.cameraId === heroCam.cameraId)?.grid}
                         polygonCoords={heroCam.polygonCoords}
-                        areaSqM={heroCam.cameraId === 'cam-001' ? 45.0 : 60.0}
+                        areaSqM={getCameraArea(heroCam.cameraId)}
                         isDark={isSocDark}
                         anomaly={!!alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)}
                         anomalyType={alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)?.type}
@@ -853,7 +874,7 @@ const CameraFeeds: React.FC = () => {
                             videoSrc={cleanVideoUrl(auxCam.rtspUrl, auxCam.cameraId)}
                             heatmapGrid={hm?.grid}
                             polygonCoords={auxCam.polygonCoords}
-                            areaSqM={auxCam.cameraId === 'cam-001' ? 45.0 : 60.0}
+                            areaSqM={getCameraArea(auxCam.cameraId)}
                             isDark={isSocDark}
                             anomaly={!!hasActiveAnomaly}
                             anomalyType={hasActiveAnomaly?.type}
@@ -952,7 +973,7 @@ const CameraFeeds: React.FC = () => {
                       videoSrc={cleanVideoUrl(focusedCam.rtspUrl, focusedCam.cameraId)}
                       heatmapGrid={hm?.grid}
                       polygonCoords={focusedCam.polygonCoords}
-                      areaSqM={focusedCam.cameraId === 'cam-001' ? 45.0 : 60.0}
+                      areaSqM={getCameraArea(focusedCam.cameraId)}
                       isDark={isSocDark}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
@@ -991,7 +1012,7 @@ const CameraFeeds: React.FC = () => {
                       videoSrc={cleanVideoUrl(cam.rtspUrl, cam.cameraId)}
                       heatmapGrid={hm?.grid}
                       polygonCoords={cam.polygonCoords}
-                      areaSqM={cam.cameraId === 'cam-001' ? 45.0 : 60.0}
+                      areaSqM={getCameraArea(cam.cameraId)}
                       isDark={isSocDark}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}

@@ -156,66 +156,41 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   const [videoError, setVideoError] = useState(false);
 
   const effectiveVideoSrc = useMemo(() => {
-    const fallback = isCam1
-      ? '/12269404_2320_1080_30fps.mp4'
-      : '/5287069-sd_960_540_30fps.mp4';
-    if (videoError || !videoSrc) return fallback;
+    if (videoError || !videoSrc) return '';
 
     let s = videoSrc.replace(/^frontend\/public\//, '/').replace(/^public\//, '/');
-    if (s.startsWith('rtsp://')) return fallback;
-    if (!s.startsWith('/') && !s.startsWith('http://') && !s.startsWith('https://')) {
+    if (s.startsWith('rtsp://') || s.startsWith('http://') || s.startsWith('https://')) {
+      return s;
+    }
+    if (!s.startsWith('/')) {
       s = '/' + s;
     }
     return s;
-  }, [videoSrc, videoError, isCam1]);
+  }, [videoSrc, videoError]);
 
-  // Calibrate headcount tally accurately to the specific video footage loaded
-  const calibratedHeadcount = useMemo(() => {
-    if (effectiveVideoSrc.includes('corridor_chokepoint')) {
-      // corridor_chokepoint.webm: ground-truth avg ~26.3, min 18, max 36
-      const base = 26;
-      const variation = Math.round(((headcount % 9) - 4));
-      return Math.max(18, Math.min(36, base + variation));
-    }
-    if (effectiveVideoSrc.includes('concourse_crossing')) {
-      // concourse_crossing.webm: ground-truth avg ~105.2, min 85, max 135
-      const base = 105;
-      const variation = Math.round(((headcount % 19) - 9));
-      return Math.max(85, Math.min(135, base + variation));
-    }
-    if (effectiveVideoSrc.includes('12269404')) {
-      // 12269404_2320_1080_30fps.mp4: ground-truth avg ~296.7, min 278, max 300
-      const base = 297;
-      const variation = Math.round(((headcount % 15) - 7));
-      return Math.max(275, Math.min(315, base + variation));
-    }
-    if (effectiveVideoSrc.includes('5287069')) {
-      // 5287069-sd_960_540_30fps.mp4: ground-truth avg ~21.8, min 16, max 29
-      const base = 22;
-      const variation = Math.round(((headcount % 7) - 3));
-      return Math.max(15, Math.min(30, base + variation));
-    }
-    return headcount;
-  }, [effectiveVideoSrc, headcount]);
+  // Real-time model headcount passed directly from backend perception pipeline
+  const liveHeadcount = headcount;
 
   const effectiveDensity: DensityLevel = useMemo(() => {
-    if (effectiveVideoSrc.includes('corridor_chokepoint')) {
-      return calibratedHeadcount > 32 ? 'moderate' : 'low';
-    }
-    if (effectiveVideoSrc.includes('concourse_crossing')) {
-      return calibratedHeadcount > 100 ? 'high' : 'moderate';
-    }
-    if (effectiveVideoSrc.includes('12269404')) {
-      return 'critical';
-    }
-    if (effectiveVideoSrc.includes('5287069')) {
-      return 'low';
-    }
-    return density;
-  }, [effectiveVideoSrc, calibratedHeadcount, density]);
+    if (density) return density;
+    const areaVal =
+      areaSqM ||
+      (cameraId === 'cam-001'
+        ? 45.0
+        : cameraId === 'cam-002'
+        ? 60.0
+        : cameraId === 'cam-003'
+        ? 50.0
+        : 70.0);
+    const d = liveHeadcount / areaVal;
+    if (d >= 5.0) return 'critical';
+    if (d >= 3.0) return 'high';
+    if (d >= 1.5) return 'moderate';
+    return 'low';
+  }, [density, liveHeadcount, areaSqM, cameraId]);
 
   const dcfg = densityConfig[effectiveDensity];
-  const [headcountHistory, setHeadcountHistory] = useState<number[]>([calibratedHeadcount]);
+  const [headcountHistory, setHeadcountHistory] = useState<number[]>([liveHeadcount]);
 
   // Video container & player state
   const containerRef = useRef<HTMLDivElement>(null);
@@ -284,10 +259,18 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    let telemetryUrl = isCam1 ? '/telemetry_cam001.json' : '/telemetry_cam002.json';
+    let telemetryUrl = '/telemetry_corridor.json';
     if (effectiveVideoSrc.includes('corridor_chokepoint')) {
       telemetryUrl = '/telemetry_corridor.json';
     } else if (effectiveVideoSrc.includes('concourse_crossing')) {
+      telemetryUrl = '/telemetry_concourse.json';
+    } else if (effectiveVideoSrc.includes('12269404')) {
+      telemetryUrl = '/telemetry_cam001.json';
+    } else if (effectiveVideoSrc.includes('5287069')) {
+      telemetryUrl = '/telemetry_cam002.json';
+    } else if (isCam1) {
+      telemetryUrl = '/telemetry_corridor.json';
+    } else {
       telemetryUrl = '/telemetry_concourse.json';
     }
 
@@ -302,14 +285,14 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [isCam1, effectiveVideoSrc]);
+  }, [cameraId, isCam1, effectiveVideoSrc]);
 
   useEffect(() => {
     setHeadcountHistory((prev) => {
-      const next = [...prev, calibratedHeadcount];
+      const next = [...prev, liveHeadcount];
       return next.slice(-20);
     });
-  }, [calibratedHeadcount]);
+  }, [liveHeadcount]);
 
   // Hardware Canvas Overlay Render Loop (runs on requestAnimationFrame, 0% React re-render lag)
   useEffect(() => {
@@ -524,7 +507,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               ctx.closePath();
 
               const areaVal = areaSqM || (isCam1 ? 45.0 : 60.0);
-              const densityPerSqM = (calibratedHeadcount / areaVal).toFixed(1);
+              const densityPerSqM = (liveHeadcount / areaVal).toFixed(1);
               const isSurgeThreshold = effectiveDensity === 'critical' || Number(densityPerSqM) >= 4.5;
 
               ctx.fillStyle = isSurgeThreshold
@@ -683,7 +666,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 15px monospace';
     ctx.fillText(
-      `SAFECROWD FORENSIC CAPTURE · ${cameraId.toUpperCase()} · ${zoneName.toUpperCase()} · HEADCOUNT: ${calibratedHeadcount} · ${new Date().toISOString()}`,
+      `SAFECROWD FORENSIC CAPTURE · ${cameraId.toUpperCase()} · ${zoneName.toUpperCase()} · HEADCOUNT: ${liveHeadcount} · ${new Date().toISOString()}`,
       20,
       offscreen.height - 15,
     );
@@ -696,7 +679,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
     setSnapshotSuccess(true);
     setTimeout(() => setSnapshotSuccess(false), 2500);
-  }, [cameraId, zoneName, calibratedHeadcount]);
+  }, [cameraId, zoneName, liveHeadcount]);
 
   return (
     <div
@@ -1018,7 +1001,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                         : 'text-slate-900'
                 }`}
               >
-                {calibratedHeadcount.toLocaleString()}
+                {liveHeadcount.toLocaleString()}
               </div>
             </div>
             <div className="pt-0.5">
@@ -1136,7 +1119,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               </span>
               <span>·</span>
               <span className="font-mono font-medium text-slate-300">
-                Live Spatial Density: {(calibratedHeadcount / (areaSqM || (isCam1 ? 45.0 : 60.0))).toFixed(2)} P/m²
+                Live Spatial Density: {(liveHeadcount / (areaSqM || (isCam1 ? 45.0 : 60.0))).toFixed(2)} P/m²
               </span>
             </div>
             <div className="text-[10px] font-mono text-slate-500">

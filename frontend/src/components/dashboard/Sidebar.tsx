@@ -52,12 +52,16 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/settings', label: 'Settings', icon: NavIcon.Settings },
 ];
 
+import { useCrowdContext } from '../../context/CrowdContext';
+
 interface SidebarProps {
   alertCount?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ alertCount = 0 }) => {
+const Sidebar: React.FC<SidebarProps> = ({ alertCount }) => {
   const { profile, logout } = useAuth();
+  const { unacknowledgedAlertsCount } = useCrowdContext();
+  const effectiveAlertCount = typeof alertCount === 'number' ? alertCount : unacknowledgedAlertsCount;
   const location = useLocation();
   const isActive = (to: string) => {
     if (to === '/dashboard') return location.pathname === '/dashboard';
@@ -89,7 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount = 0 }) => {
       <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.to);
-          const showBadge = item.to === '/alerts' && alertCount > 0;
+          const showBadge = item.to === '/alerts' && effectiveAlertCount > 0;
           return (
             <NavLink
               key={item.to}
@@ -106,7 +110,7 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount = 0 }) => {
               <span className="flex-1 truncate">{item.label}</span>
               {showBadge && (
                 <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#ff3b30] text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
-                  {alertCount > 99 ? '99+' : alertCount}
+                  {effectiveAlertCount > 99 ? '99+' : effectiveAlertCount}
                 </span>
               )}
             </NavLink>

@@ -8,6 +8,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { CrowdProvider } from './context/CrowdContext';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import CameraFeeds from './pages/CameraFeeds';
@@ -86,9 +87,11 @@ const AppRoutes: React.FC = () => {
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <CrowdProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </CrowdProvider>
     </AuthProvider>
   );
 };

@@ -14,14 +14,28 @@ router = APIRouter(prefix="/cameras", tags=["Cameras"])
 CAMERAS_DB: Dict[str, Dict] = {
     "cam-001": {
         "id": "cam-001",
-        "name": "Main Entrance Gate",
-        "rtsp_url": "/12269404_2320_1080_30fps.mp4",
-        "location": "North Terminal Gate 1",
+        "name": "North Transit Corridor (Chokepoint)",
+        "rtsp_url": "/corridor_chokepoint.webm",
+        "location": "North Transit Corridor Gate A",
         "is_active": True,
     },
     "cam-002": {
         "id": "cam-002",
-        "name": "Central Courtyard Concourse",
+        "name": "Central Concourse (Multi-Directional)",
+        "rtsp_url": "/concourse_crossing.webm",
+        "location": "Central Concourse Scramble Zone",
+        "is_active": True,
+    },
+    "cam-003": {
+        "id": "cam-003",
+        "name": "Main Terminal Gate (Dense Scramble)",
+        "rtsp_url": "/12269404_2320_1080_30fps.mp4",
+        "location": "North Terminal Gate 1",
+        "is_active": True,
+    },
+    "cam-004": {
+        "id": "cam-004",
+        "name": "Central Plaza Courtyard",
         "rtsp_url": "/5287069-sd_960_540_30fps.mp4",
         "location": "Central Plaza Zone B",
         "is_active": True,
