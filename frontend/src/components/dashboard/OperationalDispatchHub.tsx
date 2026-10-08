@@ -1,6 +1,7 @@
 import React from 'react';
 import type { CameraState, Incident } from '../../types/crowdEvent';
 import { deriveZoneCapacity } from '../../config/crowdSafety';
+import { API_BASE_URL } from '../../config/api';
 
 interface OperationalDispatchHubProps {
   cameras: CameraState[];
@@ -40,6 +41,27 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
 
   const targetName = highestLoadZone.cam?.zoneName || 'Main Concourse';
   const targetCid = highestLoadZone.cam?.cameraId?.toUpperCase() || 'CAM-001';
+
+  const postDispatchAudit = async (action: string, notes?: string) => {
+    try {
+      const token = localStorage.getItem('safecrowd_token');
+      await fetch(`${API_BASE_URL}/operations/dispatch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          action,
+          target_zone_id: highestLoadZone.cam?.zoneId || highestLoadZone.cam?.cameraId,
+          target_camera_id: highestLoadZone.cam?.cameraId,
+          notes,
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
+  };
 
   const handleExportSitrep = () => {
     const sitrepData = {
@@ -102,7 +124,10 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
         {/* Action 1: Dispatch Patrol */}
         <button
           type="button"
-          onClick={() => onDispatchAction(`Dispatched Safety Patrol to ${targetName} (${targetCid})`)}
+          onClick={() => {
+            postDispatchAudit('dispatch_patrol', `Priority response to ${targetName}`);
+            onDispatchAction(`Dispatched Safety Patrol to ${targetName} (${targetCid})`);
+          }}
           className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition flex items-center justify-between group"
         >
           <div className="flex items-center gap-2.5">
@@ -120,7 +145,10 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
         {/* Action 2: Initiate Crowd Rerouting */}
         <button
           type="button"
-          onClick={() => onDispatchAction(`Initiated Crowd Rerouting advisory to relieve load at ${targetName}`)}
+          onClick={() => {
+            postDispatchAudit('crowd_reroute', `Flow rerouting advisory for ${targetName}`);
+            onDispatchAction(`Initiated Crowd Rerouting advisory to relieve load at ${targetName}`);
+          }}
           className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 transition flex items-center justify-between group"
         >
           <div className="flex items-center gap-2.5">
@@ -138,7 +166,10 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
         {/* Action 3: Export SitRep JSON (Strictly JSON, no PDF claim) */}
         <button
           type="button"
-          onClick={handleExportSitrep}
+          onClick={() => {
+            postDispatchAudit('sitrep_export', 'Situation report snapshot exported');
+            handleExportSitrep();
+          }}
           className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition flex items-center justify-between group"
         >
           <div className="flex items-center gap-2.5">

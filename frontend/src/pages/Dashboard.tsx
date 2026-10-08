@@ -5,6 +5,7 @@ import AlertFeed from '../components/dashboard/AlertFeed';
 import ZoneCapacityMatrix from '../components/dashboard/ZoneCapacityMatrix';
 import RiskScoreGauge from '../components/dashboard/RiskScoreGauge';
 import OperationalDispatchHub from '../components/dashboard/OperationalDispatchHub';
+import AnomalyDistributionCard from '../components/dashboard/AnomalyDistributionCard';
 import { useCrowdContext } from '../context/CrowdContext';
 import {
   deriveZoneCapacity,
@@ -24,6 +25,7 @@ import {
 type HeadcountPoint = { t: string; cam001: number; cam002: number; cam003: number; cam004: number };
 
 const Dashboard: React.FC = () => {
+  const [timeWindow, setTimeWindow] = useState<'5m' | '15m' | '1h'>('15m');
   const {
     cameras,
     alerts,
@@ -321,19 +323,37 @@ const Dashboard: React.FC = () => {
                         Rolling vector window across monitored zone nodes (15s sample interval)
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 text-xs font-mono text-slate-600 flex-wrap">
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
-                        Main Terminal Gate
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
-                        North Corridor
-                      </span>
-                      <span className="inline-flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
-                        Central Concourse
-                      </span>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono">
+                        {(['5m', '15m', '1h'] as const).map((w) => (
+                          <button
+                            key={w}
+                            type="button"
+                            onClick={() => setTimeWindow(w)}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                              timeWindow === w
+                                ? 'bg-white text-slate-900 shadow-xs'
+                                : 'text-slate-500 hover:text-slate-800'
+                            }`}
+                          >
+                            {w}
+                          </button>
+                        ))}
+                      </div>
+                      <div className="hidden sm:flex items-center gap-3 text-xs font-mono text-slate-600">
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+                          Terminal Gate
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                          North Corridor
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
+                          Concourse
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -425,8 +445,14 @@ const Dashboard: React.FC = () => {
                   onDispatchAction={showToast}
                 />
 
+                {/* Spatial Anomaly Distribution */}
+                <AnomalyDistributionCard
+                  incidents={incidents}
+                  alerts={alerts}
+                />
+
                 {/* Live Alert Feed (Preserved as requested) */}
-                <div className="h-[520px]">
+                <div className="h-[460px]">
                   <AlertFeed
                     alerts={alerts}
                     onAcknowledge={acknowledgeAlert}
