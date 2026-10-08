@@ -28,7 +28,7 @@ INCIDENTS_DB: Dict[str, Dict] = {
         "event_type": "surge",
         "severity": 4,
         "detected_at": "2026-10-01T08:15:20Z",
-        "snapshot_url": "/12269404_2320_1080_30fps.mp4",
+        "snapshot_url": "/corridor_chokepoint.webm",
         "metrics_json": {
             "density": 4.2,
             "flow_vector": (0.8, -0.2),
@@ -50,7 +50,7 @@ INCIDENTS_DB: Dict[str, Dict] = {
         "event_type": "bottleneck",
         "severity": 3,
         "detected_at": "2026-10-01T09:40:12Z",
-        "snapshot_url": "/5287069-sd_960_540_30fps.mp4",
+        "snapshot_url": "/concourse_crossing.webm",
         "metrics_json": {
             "density": 3.8,
             "flow_vector": (0.1, 0.0),

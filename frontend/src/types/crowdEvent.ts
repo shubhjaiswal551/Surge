@@ -95,6 +95,15 @@ export type UserProfile = {
   twoFactorEnabled?: boolean;
 };
 
+export type ZoneDefinition = {
+  id: string;
+  camera_id: string;
+  name: string;
+  polygon_coords: [number, number][];
+  area_sq_m?: number;
+  thresholds?: Record<string, number>;
+};
+
 export type CameraState = {
   cameraId: string;
   zoneName: string;
@@ -106,4 +115,6 @@ export type CameraState = {
   lastUpdatedAgo: number;
   rtspUrl?: string;
   isActive?: boolean;
+  zoneId?: string;
+  polygonCoords?: [number, number][];
 };

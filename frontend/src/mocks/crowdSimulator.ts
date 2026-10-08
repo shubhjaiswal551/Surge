@@ -11,13 +11,13 @@ import type {
 const CAMERAS = [
   {
     cameraId: 'cam-001',
-    zoneName: 'Main Entrance Gate',
-    description: 'Primary public entry point',
+    zoneName: 'North Transit Corridor (Chokepoint)',
+    description: 'High-density corridor funnel',
   },
   {
     cameraId: 'cam-002',
-    zoneName: 'Central Courtyard',
-    description: 'Central gathering zone',
+    zoneName: 'Central Concourse (Multi-Directional)',
+    description: 'Open scramble concourse hub',
   },
 ];
 
@@ -73,6 +73,9 @@ interface SimulatorState {
   nextAnomalyAt: number;
   activeAnomalyCamera: string | null;
   activeAnomalyEndsAt: number;
+  activeAnomalyType: string | null;
+  activeAnomalySeverity: AlertSeverity | null;
+  activeAnomalyAlertFired: boolean;
   listeners: Set<(event: CrowdEvent) => void>;
   alertListeners: Set<(alert: Alert) => void>;
   incidentListeners: Set<(incident: Incident) => void>;
@@ -80,11 +83,14 @@ interface SimulatorState {
 }
 
 const state: SimulatorState = {
-  headcounts: { 'cam-001': 45, 'cam-002': 62 },
+  headcounts: { 'cam-001': 175, 'cam-002': 45 },
   flows: { 'cam-001': 85, 'cam-002': 260 },
   nextAnomalyAt: Date.now() + 20_000 + Math.random() * 20_000,
   activeAnomalyCamera: null,
   activeAnomalyEndsAt: 0,
+  activeAnomalyType: null,
+  activeAnomalySeverity: null,
+  activeAnomalyAlertFired: false,
   listeners: new Set(),
   alertListeners: new Set(),
   incidentListeners: new Set(),
@@ -100,14 +106,17 @@ function tick() {
 
   CAMERAS.forEach((cam) => {
     const isAnomalyActive = state.activeAnomalyCamera === cam.cameraId;
+    const isCam1 = cam.cameraId === 'cam-001';
 
-    let drift = (Math.random() - 0.5) * 14;
+    let drift = (Math.random() - 0.5) * (isCam1 ? 4 : 3);
     if (isAnomalyActive) {
-      drift += 18 * Math.sin(tickCount / 2) + 6;
+      drift += (isCam1 ? 8 : 4) * Math.sin(tickCount / 2) + 2;
     }
     const prev = state.headcounts[cam.cameraId];
-    let next = clamp(prev + drift, 10, 220);
-    if (isAnomalyActive && next < 130) next = clamp(next + 10, 130, 220);
+    const minCount = isCam1 ? 160 : 35;
+    const maxCount = isCam1 ? 190 : 58;
+    let next = clamp(prev + drift, minCount, maxCount);
+    if (isAnomalyActive && isCam1 && next < 180) next = clamp(next + 5, 175, 190);
     state.headcounts[cam.cameraId] = Math.round(next);
 
     let flowDrift = (Math.random() - 0.5) * 28;
@@ -120,10 +129,8 @@ function tick() {
     let severity: AlertSeverity | undefined;
 
     if (isAnomalyActive) {
-      const pick =
-        ANOMALY_TYPES[Math.floor(Math.random() * ANOMALY_TYPES.length)];
-      anomalyType = pick.type;
-      severity = pick.severity;
+      anomalyType = state.activeAnomalyType || 'Crowd Surge';
+      severity = state.activeAnomalySeverity || 'high';
     } else if (density === 'critical' && Math.random() < 0.35) {
       anomalyType = 'Density Threshold Exceeded';
       severity = 'critical';
@@ -142,29 +149,36 @@ function tick() {
     };
     state.listeners.forEach((l) => l(event));
 
+    // Emit alert only once per unique anomaly episode, rather than repeating every tick
     if (event.anomaly && event.anomalyType && event.severity) {
-      const alert: Alert = {
-        id: uid('alt_'),
-        cameraId: cam.cameraId,
-        zoneName: cam.zoneName,
-        type: event.anomalyType,
-        severity: event.severity,
-        timestamp: event.timestamp,
-        acknowledged: false,
-        snapshotFrame: Math.floor(Math.random() * 100),
-      };
-      state.alertListeners.forEach((l) => l(alert));
+      const shouldFireAlert = isAnomalyActive ? !state.activeAnomalyAlertFired : true;
+      if (shouldFireAlert) {
+        if (isAnomalyActive) {
+          state.activeAnomalyAlertFired = true;
+        }
+        const alert: Alert = {
+          id: uid('alt_'),
+          cameraId: cam.cameraId,
+          zoneName: cam.zoneName,
+          type: event.anomalyType,
+          severity: event.severity,
+          timestamp: event.timestamp,
+          acknowledged: false,
+          snapshotFrame: Math.floor(Math.random() * 100),
+        };
+        state.alertListeners.forEach((l) => l(alert));
 
-      const incident: Incident = {
-        id: uid('inc_'),
-        timestamp: event.timestamp,
-        cameraId: cam.cameraId,
-        zoneName: cam.zoneName,
-        alertType: event.anomalyType,
-        severity: event.severity,
-        status: 'open',
-      };
-      state.incidentListeners.forEach((l) => l(incident));
+        const incident: Incident = {
+          id: uid('inc_'),
+          timestamp: event.timestamp,
+          cameraId: cam.cameraId,
+          zoneName: cam.zoneName,
+          alertType: event.anomalyType,
+          severity: event.severity,
+          status: 'open',
+        };
+        state.incidentListeners.forEach((l) => l(incident));
+      }
     }
 
     if (tickCount % 2 === 0) {
@@ -179,13 +193,20 @@ function tick() {
 
   if (state.activeAnomalyCamera && now >= state.activeAnomalyEndsAt) {
     state.activeAnomalyCamera = null;
+    state.activeAnomalyType = null;
+    state.activeAnomalySeverity = null;
+    state.activeAnomalyAlertFired = false;
   }
 
   if (!state.activeAnomalyCamera && now >= state.nextAnomalyAt) {
     const cam = CAMERAS[Math.floor(Math.random() * CAMERAS.length)];
+    const pick = ANOMALY_TYPES[Math.floor(Math.random() * ANOMALY_TYPES.length)];
     state.activeAnomalyCamera = cam.cameraId;
-    state.activeAnomalyEndsAt = now + 6000 + Math.random() * 8000;
-    state.nextAnomalyAt = now + 25_000 + Math.random() * 25_000;
+    state.activeAnomalyType = pick.type;
+    state.activeAnomalySeverity = pick.severity;
+    state.activeAnomalyAlertFired = false;
+    state.activeAnomalyEndsAt = now + 12000 + Math.random() * 10000;
+    state.nextAnomalyAt = now + 35_000 + Math.random() * 30_000;
   }
 }
 

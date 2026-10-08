@@ -91,8 +91,8 @@ class StreamWorker:
         logger.info("SafeCrowd Cloud Simulation Loop is active (RAM optimized, <60MB)")
 
         cam_state = {
-            "cam-001": {"headcount": 48, "flow_x": 0.8, "flow_y": -0.2, "speed": 1.4},
-            "cam-002": {"headcount": 65, "flow_x": -0.3, "flow_y": 0.9, "speed": 1.1},
+            "cam-001": {"headcount": 296, "flow_x": 0.8, "flow_y": -0.2, "speed": 1.4},
+            "cam-002": {"headcount": 22, "flow_x": -0.3, "flow_y": 0.9, "speed": 1.1},
         }
 
         tick = 0
@@ -109,8 +109,11 @@ class StreamWorker:
                 cam_key = stream["cameraId"]
                 st = cam_state.setdefault(cam_key, {"headcount": 50, "flow_x": 0.5, "flow_y": 0.5, "speed": 1.2})
 
-                # Organic crowd fluctuations
-                st["headcount"] = max(15, min(140, st["headcount"] + random.choice([-2, -1, 0, 1, 2])))
+                # Organic crowd fluctuations reflecting video footages
+                if cam_key == "cam-001":
+                    st["headcount"] = max(265, min(325, st["headcount"] + random.choice([-2, -1, 0, 1, 2])))
+                else:
+                    st["headcount"] = max(14, min(34, st["headcount"] + random.choice([-1, 0, 1])))
                 st["speed"] = max(0.4, min(3.5, round(st["speed"] + random.uniform(-0.1, 0.1), 2)))
 
                 headcount = st["headcount"]
@@ -149,10 +152,17 @@ class StreamWorker:
 
                 verified_anomaly = is_anomaly
 
-                # Log incident and push to Redis/Alert Broker if verified anomaly occurs
+                # Log incident and push to Redis/Alert Broker if verified anomaly occurs and not already active
                 cur_time = now_ts
                 last_logged = self.last_incident_time.get(cam_key, 0.0)
-                if verified_anomaly and event_type and (cur_time - last_logged > 30.0):
+                has_active = any(
+                    inc.get("camera_id") == cam_key
+                    and inc.get("event_type") == event_type
+                    and not inc.get("resolved")
+                    and not inc.get("acknowledged_at")
+                    for inc in INCIDENTS_DB.values()
+                )
+                if verified_anomaly and event_type and not has_active and (cur_time - last_logged > 30.0):
                     self.last_incident_time[cam_key] = cur_time
                     new_inc_id = f"inc-{int(cur_time)}"
                     snapshot_rel_url = f"/{stream['default_path'].split('/')[-1]}"
@@ -242,14 +252,14 @@ class StreamWorker:
             {
                 "cameraId": "cam-001",
                 "zone_id": "zone-001",
-                "zoneName": "Main Entrance Gate",
+                "zoneName": "North Transit Corridor (Chokepoint)",
                 "default_path": "frontend/public/12269404_2320_1080_30fps.mp4",
                 "area_sq_m": 50.0,
             },
             {
                 "cameraId": "cam-002",
                 "zone_id": "zone-002",
-                "zoneName": "Central Courtyard",
+                "zoneName": "Central Concourse (Multi-Directional)",
                 "default_path": "frontend/public/5287069-sd_960_540_30fps.mp4",
                 "area_sq_m": 70.0,
             },
@@ -364,10 +374,17 @@ class StreamWorker:
 
                 verified_anomaly = self.anomaly_counter.get(cam_key, 0) >= 8
 
-                # Cooldown recording (30s)
+                # Cooldown recording (30s) and active incident deduplication
                 last_logged = self.last_incident_time.get(cam_key, 0.0)
                 cur_time = asyncio.get_event_loop().time()
-                if verified_anomaly and event_type and (cur_time - last_logged > 30.0):
+                has_active = any(
+                    inc.get("camera_id") == cam_key
+                    and inc.get("event_type") == event_type
+                    and not inc.get("resolved")
+                    and not inc.get("acknowledged_at")
+                    for inc in INCIDENTS_DB.values()
+                )
+                if verified_anomaly and event_type and not has_active and (cur_time - last_logged > 30.0):
                     self.last_incident_time[cam_key] = cur_time
                     new_inc_id = f"inc-{int(cur_time)}"
 

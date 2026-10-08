@@ -39,11 +39,47 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
   overlayOpacity,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 0, h: 0, dpr: 1 });
 
+  // 1. Maintain canvas dimensions strictly via ResizeObserver (Zero DOM reflows inside render loop!)
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const updateSize = () => {
+      const parent = canvas.parentElement;
+      if (!parent) return;
+      const w = parent.clientWidth;
+      const h = parent.clientHeight;
+      if (w > 0 && h > 0) {
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = Math.round(w * dpr);
+        canvas.height = Math.round(h * dpr);
+        sizeRef.current = { w, h, dpr };
+      }
+    };
+
+    updateSize();
+    const ro = new ResizeObserver(updateSize);
+    if (canvas.parentElement) ro.observe(canvas.parentElement);
+    window.addEventListener('resize', updateSize);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateSize);
+    };
+  }, []);
+
+  // 2. High-performance rendering in lockstep with video playback
   useEffect(() => {
     if (!showBoundingBoxes) return;
 
-    let animId: number;
+    const canvas = canvasRef.current;
+    const vid = videoRef.current;
+    if (!canvas || !vid) return;
+
+    let isDisposed = false;
+    let callbackHandle: number | null = null;
 
     const primaryBox = {
       x: isCam1 ? 36 : 38,
@@ -55,177 +91,193 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
       isAnomaly: false,
     };
 
-    const render = () => {
-      const vid = videoRef.current;
-      const canvas = canvasRef.current;
-      if (vid && canvas) {
-        const dpr = window.devicePixelRatio || 1;
-        const rect = canvas.getBoundingClientRect();
-        if (rect.width > 0 && rect.height > 0) {
-          const cw = Math.round(rect.width * dpr);
-          const ch = Math.round(rect.height * dpr);
+    const drawFrame = () => {
+      if (isDisposed) return;
 
-          if (canvas.width !== cw || canvas.height !== ch) {
-            canvas.width = cw;
-            canvas.height = ch;
-          }
+      const { w, h, dpr } = sizeRef.current;
+      if (w > 0 && h > 0) {
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.save();
+          ctx.scale(dpr, dpr);
+          ctx.clearRect(0, 0, w, h);
+          ctx.globalAlpha = Math.max(0.25, overlayOpacity / 100);
 
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.save();
-            ctx.scale(dpr, dpr);
-            ctx.clearRect(0, 0, rect.width, rect.height);
-            ctx.globalAlpha = Math.max(0.25, overlayOpacity / 100);
+          const t = vid.currentTime;
+          let currentBoxes = [primaryBox];
 
-            const t = vid.currentTime;
-            let currentBoxes = [primaryBox];
+          if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+            const timeline = telemetry.timeline;
+            let idx1 = timeline.findIndex((item: any) => item.time >= t);
+            if (idx1 === -1) idx1 = timeline.length - 1;
+            const idx0 = Math.max(0, idx1 - 1);
 
-            if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
-              const timeline = telemetry.timeline;
-              let idx1 = timeline.findIndex((item: any) => item.time >= t);
-              if (idx1 === -1) idx1 = timeline.length - 1;
-              const idx0 = Math.max(0, idx1 - 1);
+            const kf0 = timeline[idx0];
+            const kf1 = timeline[idx1];
+            const dt = kf1.time - kf0.time;
+            const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
 
-              const kf0 = timeline[idx0];
-              const kf1 = timeline[idx1];
-              const dt = kf1.time - kf0.time;
-              const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+            const aiBoxes: any[] = [];
+            const kf0Boxes = kf0.boxes || [];
+            const kf1Boxes = kf1.boxes || [];
 
-              const aiBoxes = (kf0.boxes || []).map((b0: any) => {
-                const b1 = (kf1.boxes || []).find((b: any) => b.id === b0.id) || b0;
-                return {
+            kf0Boxes.forEach((b0: any) => {
+              const b1 = kf1Boxes.find((b: any) => b.id === b0.id);
+              if (b1) {
+                // Smooth interpolation between ground-truth keyframe positions
+                aiBoxes.push({
                   x: b0.x + (b1.x - b0.x) * factor,
                   y: b0.y + (b1.y - b0.y) * factor,
                   w: b0.w + (b1.w - b0.w) * factor,
                   h: b0.h + (b1.h - b0.h) * factor,
-                  label: `${b0.label} · ${b0.conf}%`,
+                  label: b0.label.includes('%') ? b0.label : `${b0.label} · ${b0.conf}%`,
                   isPrimary: false,
                   isAnomaly: true,
-                };
-              });
-              currentBoxes = [primaryBox, ...aiBoxes];
-            } else {
-              const clipDuration = duration > 0 ? duration : 11.5;
-              const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
-              const personBoxes = baseTracks.map((trk) => ({
-                x: trk.startX + (trk.endX - trk.startX) * progress,
-                y: trk.startY + (trk.endY - trk.startY) * progress,
-                w: trk.w,
-                h: trk.h,
-                label: `${trk.id} · ${trk.conf}%`,
-                isPrimary: false,
-                isAnomaly: true,
-              }));
-              currentBoxes = [primaryBox, ...personBoxes];
-            }
-
-            // Draw each bounding box directly on hardware 2D canvas (0% CPU, 0 React re-renders)
-            for (const b of currentBoxes) {
-              const bx = (b.x / 100) * rect.width;
-              const by = (b.y / 100) * rect.height;
-              const bw = (b.w / 100) * rect.width;
-              const bh = (b.h / 100) * rect.height;
-
-              const isPrimary = b.isPrimary;
-              const isAnomaly = b.isAnomaly;
-
-              // Box fill
-              ctx.fillStyle = isPrimary
-                ? 'rgba(244, 63, 94, 0.14)'
-                : isAnomaly
-                ? 'rgba(245, 158, 11, 0.12)'
-                : 'rgba(16, 185, 129, 0.10)';
-              ctx.fillRect(bx, by, bw, bh);
-
-              // Box border
-              ctx.lineWidth = isPrimary ? 2 : 1.5;
-              ctx.strokeStyle = isPrimary
-                ? 'rgba(251, 113, 133, 0.95)'
-                : isAnomaly
-                ? 'rgba(251, 191, 36, 0.95)'
-                : 'rgba(52, 211, 153, 0.90)';
-              ctx.strokeRect(bx, by, bw, bh);
-
-              // High-tech corner reticle brackets
-              const cLen = Math.min(8, Math.min(bw, bh) * 0.25);
-              ctx.lineWidth = 2.5;
-              ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#fde68a' : '#6ee7b7';
-
-              // Top-left
-              ctx.beginPath();
-              ctx.moveTo(bx, by + cLen);
-              ctx.lineTo(bx, by);
-              ctx.lineTo(bx + cLen, by);
-              ctx.stroke();
-
-              // Top-right
-              ctx.beginPath();
-              ctx.moveTo(bx + bw - cLen, by);
-              ctx.lineTo(bx + bw, by);
-              ctx.lineTo(bx + bw, by + cLen);
-              ctx.stroke();
-
-              // Bottom-left
-              ctx.beginPath();
-              ctx.moveTo(bx, by + bh - cLen);
-              ctx.lineTo(bx, by + bh);
-              ctx.lineTo(bx + cLen, by + bh);
-              ctx.stroke();
-
-              // Bottom-right
-              ctx.beginPath();
-              ctx.moveTo(bx + bw - cLen, by + bh);
-              ctx.lineTo(bx + bw, by + bh);
-              ctx.lineTo(bx + bw, by + bh - cLen);
-              ctx.stroke();
-
-              // Top Pill Tag Badge
-              ctx.font = '600 10px monospace';
-              const textMetrics = ctx.measureText(b.label);
-              const badgeW = textMetrics.width + 16;
-              const badgeH = 16;
-              const badgeY = Math.max(0, by - badgeH - 3);
-
-              // Badge Background
-              ctx.fillStyle = isPrimary ? '#e11d48' : '#030712';
-              ctx.beginPath();
-              if (ctx.roundRect) {
-                ctx.roundRect(bx, badgeY, badgeW, badgeH, 4);
-              } else {
-                ctx.rect(bx, badgeY, badgeW, badgeH);
+                });
+              } else if (factor <= 0.3) {
+                // Lifespan ended: cleanly vanish
+                aiBoxes.push({
+                  x: b0.x,
+                  y: b0.y,
+                  w: b0.w,
+                  h: b0.h,
+                  label: b0.label.includes('%') ? b0.label : `${b0.label} · ${b0.conf}%`,
+                  isPrimary: false,
+                  isAnomaly: true,
+                });
               }
-              ctx.fill();
+            });
 
-              // Badge Border
-              ctx.lineWidth = 1;
-              ctx.strokeStyle = isPrimary
-                ? '#fda4af'
-                : isAnomaly
-                ? 'rgba(245, 158, 11, 0.6)'
-                : 'rgba(16, 185, 129, 0.4)';
-              ctx.stroke();
-
-              // Status indicator circle
-              ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fbbf24' : '#34d178';
-              ctx.beginPath();
-              ctx.arc(bx + 6, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
-              ctx.fill();
-
-              // Badge Text
-              ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fef08a' : '#6ee7b7';
-              ctx.textBaseline = 'middle';
-              ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
-            }
-
-            ctx.restore();
+            currentBoxes = [primaryBox, ...aiBoxes];
+          } else {
+            const clipDuration = duration > 0 ? duration : 11.5;
+            const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
+            const personBoxes = baseTracks.map((trk) => ({
+              x: trk.startX + (trk.endX - trk.startX) * progress,
+              y: trk.startY + (trk.endY - trk.startY) * progress,
+              w: trk.w,
+              h: trk.h,
+              label: `${trk.id} · ${trk.conf}%`,
+              isPrimary: false,
+              isAnomaly: true,
+            }));
+            currentBoxes = [primaryBox, ...personBoxes];
           }
+
+          // Render crisp hardware boxes
+          for (const b of currentBoxes) {
+            const bx = (b.x / 100) * w;
+            const by = (b.y / 100) * h;
+            const bw = (b.w / 100) * w;
+            const bh = (b.h / 100) * h;
+
+            const isPrimary = b.isPrimary;
+            const isAnomaly = b.isAnomaly;
+
+            ctx.fillStyle = isPrimary
+              ? 'rgba(244, 63, 94, 0.14)'
+              : isAnomaly
+              ? 'rgba(245, 158, 11, 0.12)'
+              : 'rgba(16, 185, 129, 0.10)';
+            ctx.fillRect(bx, by, bw, bh);
+
+            ctx.lineWidth = isPrimary ? 2 : 1.5;
+            ctx.strokeStyle = isPrimary
+              ? 'rgba(251, 113, 133, 0.95)'
+              : isAnomaly
+              ? 'rgba(251, 191, 36, 0.95)'
+              : 'rgba(52, 211, 153, 0.90)';
+            ctx.strokeRect(bx, by, bw, bh);
+
+            const cLen = Math.min(8, Math.min(bw, bh) * 0.25);
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#fde68a' : '#6ee7b7';
+
+            ctx.beginPath();
+            ctx.moveTo(bx, by + cLen);
+            ctx.lineTo(bx, by);
+            ctx.lineTo(bx + cLen, by);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(bx + bw - cLen, by);
+            ctx.lineTo(bx + bw, by);
+            ctx.lineTo(bx + bw, by + cLen);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(bx, by + bh - cLen);
+            ctx.lineTo(bx, by + bh);
+            ctx.lineTo(bx + cLen, by + bh);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(bx + bw - cLen, by + bh);
+            ctx.lineTo(bx + bw, by + bh);
+            ctx.lineTo(bx + bw, by + bh - cLen);
+            ctx.stroke();
+
+            ctx.font = '600 10px monospace';
+            const textMetrics = ctx.measureText(b.label);
+            const badgeW = textMetrics.width + 16;
+            const badgeH = 16;
+            const badgeY = Math.max(0, by - badgeH - 3);
+
+            ctx.fillStyle = isPrimary ? '#e11d48' : '#030712';
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(bx, badgeY, badgeW, badgeH, 4);
+            } else {
+              ctx.rect(bx, badgeY, badgeW, badgeH);
+            }
+            ctx.fill();
+
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = isPrimary
+              ? '#fda4af'
+              : isAnomaly
+              ? 'rgba(245, 158, 11, 0.6)'
+              : 'rgba(16, 185, 129, 0.4)';
+            ctx.stroke();
+
+            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fbbf24' : '#34d178';
+            ctx.beginPath();
+            ctx.arc(bx + 6, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fef08a' : '#6ee7b7';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
+          }
+
+          ctx.restore();
         }
       }
-      animId = requestAnimationFrame(render);
+
+      // Schedule next frame in sync with video
+      if ('requestVideoFrameCallback' in vid) {
+        callbackHandle = (vid as any).requestVideoFrameCallback(drawFrame);
+      } else {
+        callbackHandle = requestAnimationFrame(drawFrame);
+      }
     };
 
-    animId = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(animId);
+    if ('requestVideoFrameCallback' in vid) {
+      callbackHandle = (vid as any).requestVideoFrameCallback(drawFrame);
+    } else {
+      callbackHandle = requestAnimationFrame(drawFrame);
+    }
+
+    return () => {
+      isDisposed = true;
+      if (callbackHandle !== null) {
+        if ('cancelVideoFrameCallback' in vid) {
+          (vid as any).cancelVideoFrameCallback(callbackHandle);
+        } else {
+          cancelAnimationFrame(callbackHandle);
+        }
+      }
+    };
   }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration, showBoundingBoxes, overlayOpacity]);
 
   if (!showBoundingBoxes) return null;
@@ -345,8 +397,8 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
 
   const isCam1 = alert.cameraId === 'cam-001';
   const videoSrc = alert.snapshotUrl || (isCam1
-    ? '/12269404_2320_1080_30fps.mp4'
-    : '/5287069-sd_960_540_30fps.mp4');
+    ? '/corridor_chokepoint.webm'
+    : '/concourse_crossing.webm');
 
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
@@ -439,6 +491,8 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
       (alert as any).telemetryUrl,
       `${API_BASE_URL}/incidents/${alert.id}/telemetry`,
       `${API_BASE_URL}/cameras/${alert.cameraId}/telemetry`,
+      videoSrc.includes('corridor_chokepoint') ? '/telemetry_corridor.json' :
+      videoSrc.includes('concourse_crossing') ? '/telemetry_concourse.json' :
       isCam1 ? '/telemetry_cam001.json' : '/telemetry_cam002.json',
     ].filter(Boolean) as string[];
 

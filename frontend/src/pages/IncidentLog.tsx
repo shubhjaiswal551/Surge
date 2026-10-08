@@ -52,7 +52,16 @@ const IncidentLog: React.FC = () => {
 
     startCrowdSimulator();
     const off1 = onIncident((inc) =>
-      setIncidents((prev) => [inc, ...prev].slice(0, 200)),
+      setIncidents((prev) => {
+        const hasOpenSameIncident = prev.some(
+          (i) =>
+            i.cameraId === inc.cameraId &&
+            i.alertType === inc.alertType &&
+            i.status === 'open',
+        );
+        if (hasOpenSameIncident) return prev;
+        return [inc, ...prev].slice(0, 200);
+      }),
     );
     const off2 = onAlert(() =>
       setAlerts((n) => n + 1),

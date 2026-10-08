@@ -15,14 +15,14 @@ CAMERAS_DB: Dict[str, Dict] = {
     "cam-001": {
         "id": "cam-001",
         "name": "Main Entrance Gate",
-        "rtsp_url": "frontend/public/12269404_2320_1080_30fps.mp4",
+        "rtsp_url": "/12269404_2320_1080_30fps.mp4",
         "location": "North Terminal Gate 1",
         "is_active": True,
     },
     "cam-002": {
         "id": "cam-002",
         "name": "Central Courtyard Concourse",
-        "rtsp_url": "frontend/public/5287069-sd_960_540_30fps.mp4",
+        "rtsp_url": "/5287069-sd_960_540_30fps.mp4",
         "location": "Central Plaza Zone B",
         "is_active": True,
     },

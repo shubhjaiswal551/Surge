@@ -53,8 +53,8 @@ const Dashboard: React.FC = () => {
       const ss = t.getSeconds().toString().padStart(2, '0');
       arr.push({
         t: `${hh}:${mm}:${ss}`,
-        cam001: 30 + Math.round(Math.random() * 60),
-        cam002: 40 + Math.round(Math.random() * 70),
+        cam001: 22 + Math.round(Math.random() * 8),
+        cam002: 95 + Math.round(Math.random() * 20),
       });
     }
     return arr;
@@ -101,10 +101,8 @@ const Dashboard: React.FC = () => {
     if (ev.anomaly) {
       const now = Date.now();
       const lastFired = lastAlertTimestampRef.current[ev.cameraId] || 0;
-      // 30-second cooldown per camera to avoid flooding 10 alerts/sec
-      if (now - lastFired > 30_000) {
-        lastAlertTimestampRef.current[ev.cameraId] = now;
-        
+      // 10-second debounce window per camera
+      if (now - lastFired > 10_000) {
         // Convert numeric severity (1-5) to string ('info' | 'warning' | 'high' | 'critical')
         let mappedSev: 'info' | 'warning' | 'high' | 'critical' = 'high';
         const rawSev = (ev as any).severity;
@@ -114,18 +112,39 @@ const Dashboard: React.FC = () => {
           mappedSev = (rawSev as any);
         }
 
-        const newAlert: Alert = {
-          id: `alt-${now.toString(36)}`,
-          cameraId: ev.cameraId,
-          zoneName: ev.zoneName,
-          type: ev.anomalyType || 'Crowd Anomaly Detected',
-          severity: mappedSev,
-          timestamp: ev.timestamp || new Date().toISOString(),
-          acknowledged: false,
-          metrics: ev.metrics,
-          snapshotUrl: '/12269404_2320_1080_30fps.mp4',
-        };
-        setAlerts((prev) => [newAlert, ...prev].slice(0, 50));
+        const anomalyType = ev.anomalyType || 'Crowd Anomaly Detected';
+
+        setAlerts((prev) => {
+          // Check if exact same alert is already active and unacknowledged/unfixed
+          const hasUnacknowledgedSameAlert = prev.some(
+            (a) =>
+              a.cameraId === ev.cameraId &&
+              a.type === anomalyType &&
+              !a.acknowledged,
+          );
+          if (hasUnacknowledgedSameAlert) {
+            // Do not repeat: keep original alert, simply refresh timestamp & metrics
+            return prev.map((a) =>
+              a.cameraId === ev.cameraId && a.type === anomalyType && !a.acknowledged
+                ? { ...a, timestamp: ev.timestamp || new Date().toISOString(), metrics: ev.metrics || a.metrics }
+                : a,
+            );
+          }
+
+          lastAlertTimestampRef.current[ev.cameraId] = now;
+          const newAlert: Alert = {
+            id: `alt-${now.toString(36)}`,
+            cameraId: ev.cameraId,
+            zoneName: ev.zoneName,
+            type: anomalyType,
+            severity: mappedSev,
+            timestamp: ev.timestamp || new Date().toISOString(),
+            acknowledged: false,
+            metrics: ev.metrics,
+            snapshotUrl: ev.cameraId === 'cam-001' ? '/corridor_chokepoint.webm' : '/concourse_crossing.webm',
+          };
+          return [newAlert, ...prev].slice(0, 50);
+        });
       }
     }
   }, []);
@@ -163,17 +182,38 @@ const Dashboard: React.FC = () => {
 
       offs.push(
         onAlert((alt) => {
-          const now = Date.now();
-          const last = lastAlertTimestampRef.current[alt.cameraId] || 0;
-          if (now - last > 25_000) {
-            lastAlertTimestampRef.current[alt.cameraId] = now;
-            setAlerts((prev) => [alt, ...prev].slice(0, 50));
-          }
+          setAlerts((prev) => {
+            // Check if exact same alert is already active and unacknowledged/unfixed
+            const hasUnacknowledgedSameAlert = prev.some(
+              (a) =>
+                a.cameraId === alt.cameraId &&
+                a.type === alt.type &&
+                !a.acknowledged,
+            );
+            if (hasUnacknowledgedSameAlert) {
+              // Do not repeat duplicate alert card
+              return prev.map((a) =>
+                a.cameraId === alt.cameraId && a.type === alt.type && !a.acknowledged
+                  ? { ...a, timestamp: alt.timestamp, metrics: alt.metrics || a.metrics }
+                  : a,
+              );
+            }
+            return [alt, ...prev].slice(0, 50);
+          });
         }),
       );
       offs.push(
         onIncident((inc) =>
-          setIncidents((prev) => [inc, ...prev].slice(0, 100)),
+          setIncidents((prev) => {
+            const hasOpenSameIncident = prev.some(
+              (i) =>
+                i.cameraId === inc.cameraId &&
+                i.alertType === inc.alertType &&
+                i.status === 'open',
+            );
+            if (hasOpenSameIncident) return prev;
+            return [inc, ...prev].slice(0, 100);
+          }),
         ),
       );
       offs.push(
@@ -347,7 +387,7 @@ const Dashboard: React.FC = () => {
                       density={cam1.density}
                       flowDirection={cam1.flowDirection}
                       lastUpdatedAgo={cam1.lastUpdatedAgo}
-                      videoSrc="/12269404_2320_1080_30fps.mp4"
+                      videoSrc="/corridor_chokepoint.webm"
                       anomaly={alerts.find(
                         (a) =>
                           !a.acknowledged && a.cameraId === cam1.cameraId,
@@ -371,7 +411,7 @@ const Dashboard: React.FC = () => {
                       density={cam2.density}
                       flowDirection={cam2.flowDirection}
                       lastUpdatedAgo={cam2.lastUpdatedAgo}
-                      videoSrc="/5287069-sd_960_540_30fps.mp4"
+                      videoSrc="/concourse_crossing.webm"
                       anomaly={alerts.find(
                         (a) =>
                           !a.acknowledged && a.cameraId === cam2.cameraId,
