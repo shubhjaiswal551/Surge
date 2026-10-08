@@ -4,9 +4,9 @@ Handles camera list and admin configuration per AppFlow.md and schema.md.
 """
 
 import uuid
-from typing import Dict, List
-from fastapi import APIRouter, Depends, HTTPException, status
-from ..models.schemas import CameraCreate, CameraUpdate, CameraResponse
+from typing import Dict, List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from ..models.schemas import CameraCreate, CameraUpdate, CameraResponse, TelemetryPointResponse
 from .auth import get_current_user, require_admin
 
 router = APIRouter(prefix="/cameras", tags=["Cameras"])
@@ -95,3 +95,22 @@ async def delete_camera(
     if camera_id not in CAMERAS_DB:
         raise HTTPException(status_code=404, detail="Camera not found")
     del CAMERAS_DB[camera_id]
+
+@router.get("/{camera_id}/telemetry-history", response_model=List[TelemetryPointResponse])
+async def get_camera_telemetry_history(
+    camera_id: str,
+    window: str = Query("15m", pattern="^(5m|15m|1h)$"),
+    user: Dict = Depends(get_current_user),
+):
+    if camera_id not in CAMERAS_DB:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    window_sec_map = {
+        "5m": 300,
+        "15m": 900,
+        "1h": 3600,
+    }
+    from ..services.stream_worker import stream_worker
+    sec = window_sec_map.get(window, 900)
+    history = stream_worker.get_telemetry_history(camera_id, window_seconds=sec)
+    return history

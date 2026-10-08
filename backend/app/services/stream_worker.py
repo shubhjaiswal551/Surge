@@ -4,6 +4,7 @@ Runs YOLO + ByteTrack perception & analytics tier and broadcasts events to conne
 """
 
 import asyncio
+from collections import deque
 import json
 import logging
 import math
@@ -48,6 +49,14 @@ class StreamWorker:
         self.is_running = False
         self.anomaly_counter: Dict[str, int] = {}
         self.last_incident_time: Dict[str, float] = {}
+        self.telemetry_history: Dict[str, deque] = {}
+
+    def get_telemetry_history(self, camera_id: str, window_seconds: int = 900) -> List[dict]:
+        history = self.telemetry_history.get(camera_id)
+        if not history:
+            return []
+        items = list(history)
+        return items[-window_seconds:]
 
     def add_client(self, ws: WebSocket):
         self.connected_clients.add(ws)
@@ -266,6 +275,16 @@ class StreamWorker:
                     "anomalyType": event_type if verified_anomaly else None,
                     "timestamp": now_iso,
                 }
+
+                if cam_key not in self.telemetry_history:
+                    self.telemetry_history[cam_key] = deque(maxlen=3600)
+                self.telemetry_history[cam_key].append({
+                    "timestamp": now_iso,
+                    "headcount": int(headcount),
+                    "density": float(density_val),
+                    "avg_speed": float(avg_speed),
+                    "turbulence": 0.15,
+                })
 
                 await self.broadcast_payload(payload)
 
@@ -573,6 +592,16 @@ class StreamWorker:
                     "anomalyType": event_type if verified_anomaly else None,
                     "timestamp": now_iso,
                 }
+
+                if cam_key not in self.telemetry_history:
+                    self.telemetry_history[cam_key] = deque(maxlen=3600)
+                self.telemetry_history[cam_key].append({
+                    "timestamp": now_iso,
+                    "headcount": int(headcount),
+                    "density": float(density_val),
+                    "avg_speed": float(avg_speed),
+                    "turbulence": float(turbulence if 'turbulence' in locals() else 0.15),
+                })
 
                 await self.broadcast_payload(payload)
 

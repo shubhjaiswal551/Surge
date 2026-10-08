@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from .routers import auth, cameras, zones, incidents, websocket
+from .routers import auth, cameras, zones, incidents, websocket, operations
 from .services.stream_worker import stream_worker
 
 logging.basicConfig(
@@ -76,6 +76,7 @@ app.include_router(cameras.router)
 app.include_router(zones.router)
 app.include_router(incidents.router)
 app.include_router(websocket.router)
+app.include_router(operations.router)
 
 from fastapi.staticfiles import StaticFiles
 snapshots_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "snapshots")

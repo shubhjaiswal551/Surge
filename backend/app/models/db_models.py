@@ -71,3 +71,14 @@ class UserModel(Base):
     password_hash = Column(String(256), nullable=False)
     role = Column(String(32), default="operator", nullable=False)
     created_at = Column(String(64), default=lambda: datetime.utcnow().isoformat() + "Z")
+
+class AuditLogModel(Base):
+    __tablename__ = "audit_logs"
+
+    id = Column(String(36), primary_key=True, default=lambda: f"aud-{uuid.uuid4().hex[:8]}")
+    user_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    action = Column(String(64), nullable=False)
+    target_zone_id = Column(String(36), ForeignKey("zones.id"), nullable=True)
+    timestamp = Column(String(64), default=lambda: datetime.utcnow().isoformat() + "Z")
+    simulated = Column(Boolean, default=True, nullable=False)
+    details_json = Column(JSON, nullable=True)

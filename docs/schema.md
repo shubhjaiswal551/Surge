@@ -49,6 +49,18 @@
 | role | TEXT | `admin` or `operator` (see `security.md`) |
 | created_at | TIMESTAMPTZ | |
 
+### `audit_logs`
+
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID (PK) | |
+| user_id | UUID (FK → users.id, nullable) | operator who executed action |
+| action | TEXT | e.g. `dispatch_patrol`, `crowd_reroute`, `pa_broadcast`, `sitrep_export` |
+| target_zone_id | UUID (FK → zones.id, nullable) | target zone for SOP action |
+| timestamp | TIMESTAMPTZ | when action was recorded |
+| simulated | BOOLEAN | true if webhook not fired / simulated demo |
+| details_json | JSONB (nullable) | extra parameters |
+
 ## Redis — Live Alert Queue
 
 Key pattern: `alerts:live:{camera_id}`

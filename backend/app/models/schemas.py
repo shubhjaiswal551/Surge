@@ -110,3 +110,25 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+class TelemetryPointResponse(BaseModel):
+    timestamp: str
+    headcount: int
+    density: float
+    avg_speed: float
+    turbulence: float
+
+class DispatchActionRequest(BaseModel):
+    action: str  # e.g. dispatch_patrol, crowd_reroute, pa_broadcast, sitrep_export
+    target_zone_id: Optional[str] = None
+    target_camera_id: Optional[str] = None
+    notes: Optional[str] = None
+
+class AuditLogResponse(BaseModel):
+    id: str
+    user_id: Optional[str] = None
+    action: str
+    target_zone_id: Optional[str] = None
+    timestamp: str
+    simulated: bool
+    details_json: Optional[Dict[str, Any]] = None
