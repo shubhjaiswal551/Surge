@@ -28,7 +28,7 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-bg-primary">
+    <div className="h-screen w-screen flex overflow-hidden bg-[#f5f5f7]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
         <StatusBar activeAlertCount={0} />
@@ -36,24 +36,28 @@ const Settings: React.FC = () => {
         <main className="flex-1 overflow-y-auto min-h-0">
           <div className="px-6 py-5 max-w-3xl space-y-5">
             <div>
-              <h1 className="text-xl font-semibold text-text-primary">
+              <h1 className="text-xl font-semibold text-slate-900 tracking-tight">
                 Settings
               </h1>
-              <p className="text-sm text-text-secondary mt-1">
-                Operator profile, security preferences and pipeline configuration.
+              <p className="text-xs text-slate-500 mt-1">
+                Operator profile, security preferences, and pipeline configuration.
               </p>
             </div>
 
-            <div className="card p-5 space-y-5">
+            {/* Operator Profile */}
+            <div className="card p-6 space-y-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-text-primary">
-                  Operator Profile
-                </h2>
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Operator Profile
+                  </h2>
+                  <p className="text-xs text-slate-400">Identity and active session credentials</p>
+                </div>
                 <span
                   className={`chip ${
                     authMode === 'firebase'
                       ? 'chip-safe'
-                      : 'bg-warn-bg text-warn-light border-warn/30'
+                      : 'bg-amber-50 text-amber-700 border-amber-200/80'
                   }`}
                 >
                   {authMode === 'firebase' ? 'Firebase Auth' : 'Demo Mode'}
@@ -61,7 +65,7 @@ const Settings: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-full bg-bg-tertiary border border-border flex items-center justify-center overflow-hidden">
+                <div className="w-16 h-16 rounded-full bg-slate-100 border border-slate-200/80 shadow-sm flex items-center justify-center overflow-hidden">
                   {profile?.photoURL ? (
                     <img
                       src={profile.photoURL}
@@ -69,27 +73,27 @@ const Settings: React.FC = () => {
                       className="w-full h-full object-cover"
                     />
                   ) : (
-                    <span className="text-2xl font-semibold text-text-primary">
+                    <span className="text-2xl font-semibold text-slate-700">
                       {profile?.displayName?.[0]?.toUpperCase() ?? 'O'}
                     </span>
                   )}
                 </div>
-                <div className="space-y-1">
-                  <div className="text-base font-medium text-text-primary">
+                <div className="space-y-0.5">
+                  <div className="text-base font-semibold text-slate-900">
                     {profile?.displayName ?? 'Operator'}
                   </div>
-                  <div className="text-sm text-text-secondary">
+                  <div className="text-xs text-slate-500">
                     {profile?.email ?? '—'}
                   </div>
-                  <div className="text-[11px] uppercase tracking-wider text-text-muted">
+                  <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 pt-0.5">
                     {profile?.role ?? 'operator'} · UID {profile?.uid ?? '—'}
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="grid grid-cols-2 gap-4 pt-1">
                 <div className="space-y-1.5">
-                  <label className="label-sm">Display Name</label>
+                  <label className="text-xs font-medium text-slate-500">Display Name</label>
                   <input
                     className="input-field text-sm"
                     defaultValue={profile?.displayName ?? ''}
@@ -97,7 +101,7 @@ const Settings: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="label-sm">Email</label>
+                  <label className="text-xs font-medium text-slate-500">Email Address</label>
                   <input
                     className="input-field text-sm"
                     defaultValue={profile?.email ?? ''}
@@ -108,20 +112,20 @@ const Settings: React.FC = () => {
             </div>
 
             {/* Google Authenticator 2FA Security Card */}
-            <div className="card p-5 space-y-4 border-border/90">
+            <div className="card p-6 space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-md bg-accent-bg border border-accent/30 flex items-center justify-center text-accent">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200/60 flex items-center justify-center text-[#0071e3]">
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
                       <line x1="12" y1="18" x2="12.01" y2="18" />
                     </svg>
                   </div>
                   <div>
-                    <h2 className="text-sm font-semibold text-text-primary">
+                    <h2 className="text-sm font-semibold text-slate-900">
                       Google Authenticator (2FA)
                     </h2>
-                    <p className="text-xs text-text-secondary">
+                    <p className="text-xs text-slate-500">
                       Multi-Factor Authentication via TOTP Mobile App
                     </p>
                   </div>
@@ -130,25 +134,25 @@ const Settings: React.FC = () => {
                   className={`chip ${
                     profile?.twoFactorEnabled
                       ? 'chip-safe'
-                      : 'bg-bg-tertiary text-text-muted border-border'
+                      : 'bg-slate-100 text-slate-500 border-slate-200'
                   }`}
                 >
                   {profile?.twoFactorEnabled ? '2FA Enabled' : 'Disabled'}
                 </span>
               </div>
 
-              <p className="text-xs text-text-secondary leading-relaxed">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 Add an extra layer of security to your control room operator account. When enabled, signing in requires a 6-digit verification code generated by your Google Authenticator app.
               </p>
 
               {disableError && (
-                <div className="p-2.5 rounded-md bg-danger-bg border border-danger/30 text-danger-light text-xs">
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs">
                   {disableError}
                 </div>
               )}
 
-              <div className="pt-2 flex items-center justify-between border-t border-border-subtle">
-                <div className="text-[11px] text-text-muted">
+              <div className="pt-3 flex items-center justify-between border-t border-slate-100">
+                <div className="text-[11px] text-slate-400">
                   Provider: Firebase Auth TOTP / Google Authenticator
                 </div>
 
@@ -157,7 +161,7 @@ const Settings: React.FC = () => {
                     type="button"
                     onClick={handleDisable2FA}
                     disabled={disabling}
-                    className="px-4 py-1.5 rounded-md text-xs font-medium bg-danger-bg text-danger-light hover:bg-danger-bg/80 border border-danger/40 transition-colors"
+                    className="px-4 py-1.5 rounded-full text-xs font-medium bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 transition-colors shadow-sm"
                   >
                     {disabling ? 'Disabling…' : 'Disable 2FA'}
                   </button>
@@ -173,83 +177,98 @@ const Settings: React.FC = () => {
               </div>
             </div>
 
-            <div className="card p-5 space-y-5">
-              <h2 className="text-sm font-semibold text-text-primary">
-                Alert Notifications
-              </h2>
-              {[
-                {
-                  label: 'Critical severity alerts',
-                  desc: 'Push + on-screen for CRITICAL anomalies',
-                  checked: true,
-                },
-                {
-                  label: 'High severity alerts',
-                  desc: 'Push + on-screen for HIGH anomalies',
-                  checked: true,
-                },
-                {
-                  label: 'Warning alerts',
-                  desc: 'On-screen only for WARNING anomalies',
-                  checked: true,
-                },
-                {
-                  label: 'Email digests',
-                  desc: 'Daily incident summary at 08:00 local time',
-                  checked: false,
-                },
-                {
-                  label: 'Auto-notify security team',
-                  desc: 'Trigger escalation workflows for CRITICAL events',
-                  checked: true,
-                },
-              ].map((row) => (
-                <label
-                  key={row.label}
-                  className="flex items-start justify-between gap-4 p-3 rounded-md border border-border-subtle hover:bg-bg-tertiary/40 transition-colors cursor-pointer"
-                >
-                  <div>
-                    <div className="text-sm text-text-primary">{row.label}</div>
-                    <div className="text-[11px] text-text-muted mt-0.5">
-                      {row.desc}
+            {/* Alert Notifications */}
+            <div className="card p-6 space-y-4">
+              <div>
+                <h2 className="text-sm font-semibold text-slate-900">
+                  Alert Notifications
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Configure desktop toasts, auditory chimes, and dispatch triggers
+                </p>
+              </div>
+              <div className="space-y-2">
+                {[
+                  {
+                    label: 'Critical severity alerts',
+                    desc: 'Push + on-screen for CRITICAL anomalies',
+                    checked: true,
+                  },
+                  {
+                    label: 'High severity alerts',
+                    desc: 'Push + on-screen for HIGH anomalies',
+                    checked: true,
+                  },
+                  {
+                    label: 'Warning alerts',
+                    desc: 'On-screen only for WARNING anomalies',
+                    checked: true,
+                  },
+                  {
+                    label: 'Email digests',
+                    desc: 'Daily incident summary at 08:00 local time',
+                    checked: false,
+                  },
+                  {
+                    label: 'Auto-notify security team',
+                    desc: 'Trigger escalation workflows for CRITICAL events',
+                    checked: true,
+                  },
+                ].map((row) => (
+                  <label
+                    key={row.label}
+                    className="flex items-center justify-between gap-4 p-3 rounded-xl border border-slate-200/60 bg-white/50 hover:bg-white hover:border-slate-300/80 transition-all cursor-pointer shadow-sm"
+                  >
+                    <div>
+                      <div className="text-xs font-semibold text-slate-800">{row.label}</div>
+                      <div className="text-[11px] text-slate-400 mt-0.5">
+                        {row.desc}
+                      </div>
                     </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    defaultChecked={row.checked}
-                    className="mt-1 w-4 h-4 accent-accent"
-                  />
-                </label>
-              ))}
+                    <input
+                      type="checkbox"
+                      defaultChecked={row.checked}
+                      className="w-4 h-4 rounded text-[#0071e3] focus:ring-[#0071e3] accent-[#0071e3] cursor-pointer"
+                    />
+                  </label>
+                ))}
+              </div>
             </div>
 
-            <div className="card p-5 space-y-5">
+            {/* Detection Pipeline & Risk Thresholds */}
+            <div className="card p-6 space-y-5">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-text-primary">
-                  Detection Pipeline & Risk Thresholds
-                </h2>
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-900">
+                    Detection Pipeline & Risk Thresholds
+                  </h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Real-time edge perception engine parameters</p>
+                </div>
                 <span className="chip chip-safe">Live Backend Connected</span>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="label-sm">Density Threshold (High)</label>
-                  <input className="input-field text-sm mono" defaultValue="3.0 people/m²" readOnly />
+                  <label className="text-xs font-medium text-slate-500">Density Threshold (High)</label>
+                  <input className="input-field text-xs mono" defaultValue="3.0 people/m²" readOnly />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="label-sm">Density Threshold (Critical)</label>
-                  <input className="input-field text-sm mono" defaultValue="5.0 people/m²" readOnly />
+                  <label className="text-xs font-medium text-slate-500">Density Threshold (Critical)</label>
+                  <input className="input-field text-xs mono" defaultValue="5.0 people/m²" readOnly />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="label-sm">Anomaly Debounce Window</label>
-                  <input className="input-field text-sm mono" defaultValue="8 frames (0.8s)" readOnly />
+                  <label className="text-xs font-medium text-slate-500">Anomaly Debounce Window</label>
+                  <input className="input-field text-xs mono" defaultValue="8 frames (0.8s)" readOnly />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="label-sm">Inference Device</label>
-                  <input className="input-field text-sm mono" defaultValue="NVIDIA RTX 4060 (CUDA:0)" readOnly />
+                  <label className="text-xs font-medium text-slate-500">Inference Device</label>
+                  <input className="input-field text-xs mono" defaultValue="NVIDIA RTX 4060 (CUDA:0)" readOnly />
                 </div>
               </div>
-              <div className="p-3 rounded-md bg-safe-bg border border-safe/30 text-safe-light text-xs">
-                Perception Tier (YOLO best.pt) and Analytics Tier (ByteTrack + Anomaly Engine) are operating live at ~10 FPS over WebSocket.
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-200/60 text-emerald-800 text-xs flex items-center gap-2.5">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-emerald-600 shrink-0">
+                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                </svg>
+                <span>Perception Tier (YOLO best.pt) and Analytics Tier (ByteTrack + Anomaly Engine) are operating live at ~10 FPS over WebSocket.</span>
               </div>
             </div>
           </div>

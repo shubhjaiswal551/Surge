@@ -74,7 +74,7 @@ const FlowArrow: React.FC<{ degrees: number; density: DensityLevel }> = ({
           />
         </svg>
       </div>
-      <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{degrees}°</span>
+      <span className="text-[11px] font-semibold text-slate-700 tabular-nums">{Math.round(degrees)}°</span>
     </div>
   );
 };
@@ -693,7 +693,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
       }`}
     >
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-2.5 border-b backdrop-blur-md ${
+      <div className={`flex items-center justify-between px-5 py-3.5 border-b backdrop-blur-md ${
         isDark ? 'bg-slate-900/95 border-slate-800' : 'bg-white/90 border-slate-100'
       }`}>
         <div className="flex items-center gap-2.5 min-w-0">
@@ -724,7 +724,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               )}
             </div>
             <div className="text-[10px] text-slate-400 font-medium tracking-normal truncate">
-              {cameraId.toUpperCase()} · RTSP Optical Surveillance · 1080P 30 FPS
+              {cameraId.toUpperCase()} · 1080P 30 FPS · Live AI Stream
             </div>
           </div>
         </div>
@@ -735,9 +735,15 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               type="button"
               onClick={onCalibrateZone}
               title="Calibrate custom polygon detection zone"
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200/80 text-slate-700 font-medium text-[11px] border border-slate-200/60 shadow-xs active:scale-[0.98] transition-all"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100/90 hover:bg-slate-200/80 text-slate-700 font-medium text-xs border border-slate-200/70 shadow-xs active:scale-[0.98] transition-all"
             >
-              <span>📐</span>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="22" y1="12" x2="18" y2="12" />
+                <line x1="6" y1="12" x2="2" y2="12" />
+                <line x1="12" y1="6" x2="12" y2="2" />
+                <line x1="12" y1="22" x2="12" y2="18" />
+              </svg>
               <span className="hidden sm:inline">Calibrate</span>
             </button>
           )}
@@ -800,42 +806,41 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
           />
         </div>
 
-        {/* Top Left: Live Status & RTSP Sync */}
-        <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-20 pointer-events-none">
-          <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-900/70 border border-white/20 text-white backdrop-blur-md text-[10px] font-medium shadow-sm">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            Live Stream
-          </span>
+        {/* Top Left: Live Status & Anomaly Alert */}
+        <div className="absolute top-2.5 left-2.5 flex items-center gap-2 z-20">
+          {anomaly ? (
+            <button
+              type="button"
+              onClick={onInspectAnomaly}
+              title="Anomaly detected! Click to inspect forensic evidence"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-600 text-white border border-rose-300 shadow-md shadow-rose-950/40 backdrop-blur-md animate-pulse hover:bg-rose-500 active:scale-95 transition-all cursor-pointer shrink-0"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              <span>{anomalyType ? (anomalyType.includes(' ') ? anomalyType.split(' ')[0] : anomalyType) : 'Surge'} Alert</span>
+              <span className="text-white/80 font-normal">↗</span>
+            </button>
+          ) : (
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/80 border border-white/20 text-white backdrop-blur-md text-[10px] font-medium shadow-sm shrink-0">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              Live
+            </span>
+          )}
           {zoomLevel > 1 && (
-            <span className="px-2 py-0.5 rounded-full bg-blue-600/80 border border-blue-400/40 text-white backdrop-blur-md text-[10px] font-mono font-medium shadow-sm">
-              {zoomLevel.toFixed(1)}x Zoom
+            <span className="px-2 py-0.5 rounded-full bg-blue-600/80 border border-blue-400/40 text-white backdrop-blur-md text-[10px] font-mono font-medium shadow-sm shrink-0">
+              {zoomLevel.toFixed(1)}x
             </span>
           )}
         </div>
 
         {/* Top Right: AI Layer Controls & VMS Tooling */}
-        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-20 flex-wrap justify-end">
-          {/* Anomaly Badge (Clickable to launch Forensic Modal) */}
-          {anomaly && (
-            <button
-              type="button"
-              onClick={onInspectAnomaly}
-              title="Anomaly detected! Click to inspect forensic evidence"
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-sans font-bold bg-rose-600 text-white border border-rose-300 shadow-lg shadow-rose-500/30 animate-pulse hover:bg-rose-500 active:scale-95 transition-all cursor-pointer"
-            >
-              <span className="w-1.5 h-1.5 rounded-full bg-white" />
-              <span>{anomalyType ? anomalyType.toUpperCase() : 'SURGE ANOMALY'}</span>
-              <span className="text-white/80 font-normal">· Inspect →</span>
-            </button>
-          )}
-
+        <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-20">
           {/* AI Layer Pill Controls */}
-          <div className="flex items-center bg-slate-950/70 backdrop-blur-md rounded-xl p-0.5 border border-white/15 shadow-sm text-[10px] text-white">
+          <div className="flex items-center bg-slate-950/75 backdrop-blur-md rounded-xl p-0.5 border border-white/15 shadow-sm text-[10px] text-white shrink-0">
             <button
               type="button"
               onClick={() => setShowBoxes(!showBoxes)}
               title="Toggle AI Object Detection Bounding Boxes"
-              className={`px-2 py-0.5 rounded-lg transition-all font-medium ${
+              className={`px-1.5 py-0.5 rounded-lg transition-all font-medium ${
                 showBoxes ? 'bg-emerald-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
               }`}
             >
@@ -845,7 +850,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               type="button"
               onClick={() => setShowHeatmap(!showHeatmap)}
               title="Toggle Thermal Density Heatmap Overlay"
-              className={`px-2 py-0.5 rounded-lg transition-all font-medium ${
+              className={`px-1.5 py-0.5 rounded-lg transition-all font-medium ${
                 showHeatmap ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
               }`}
             >
@@ -855,7 +860,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               type="button"
               onClick={() => setShowVectors(!showVectors)}
               title="Toggle Motion Flow Direction Vectors"
-              className={`px-2 py-0.5 rounded-lg transition-all font-medium ${
+              className={`px-1.5 py-0.5 rounded-lg transition-all font-medium ${
                 showVectors ? 'bg-sky-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
               }`}
             >
@@ -865,7 +870,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               type="button"
               onClick={() => setShowZone(!showZone)}
               title="Toggle Calibrated Detection Zone Perimeter"
-              className={`px-2 py-0.5 rounded-lg transition-all font-medium ${
+              className={`px-1.5 py-0.5 rounded-lg transition-all font-medium ${
                 showZone ? 'bg-indigo-500 text-white shadow-xs' : 'text-slate-300 hover:text-white'
               }`}
             >
@@ -982,16 +987,16 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
           </div>
         )}
 
-        {/* Floating Frosted Glass HUD at bottom */}
-        <div className="absolute bottom-2.5 left-2.5 right-2.5 flex items-end justify-between z-10 pointer-events-none gap-2">
+        {/* Floating Frosted Glass HUD at bottom corners */}
+        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between z-10 pointer-events-none">
           {/* Headcount Card with Trend Sparkline */}
-          <div className={`backdrop-blur-xl border px-2.5 py-1.5 rounded-xl flex items-center gap-2.5 pointer-events-auto ${
+          <div className={`backdrop-blur-xl border px-3 py-2 rounded-xl flex items-center gap-3 pointer-events-auto ${
             isDark ? 'bg-slate-900/90 border-slate-800 shadow-xl' : 'bg-white/90 border-white/80 shadow-glass'
           }`}>
             <div>
               <div className="label-sm text-[9px] text-slate-400 leading-none">Headcount</div>
               <div
-                className={`font-sans text-base font-bold tracking-tight tabular-nums leading-none mt-0.5 ${
+                className={`font-sans text-base font-bold tracking-tight tabular-nums leading-none mt-1 ${
                   effectiveDensity === 'critical'
                     ? 'text-rose-500'
                     : effectiveDensity === 'high'
@@ -1012,47 +1017,13 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             </div>
           </div>
 
-          {/* Vector Flow Card & Telemetry Quick Actions */}
-          <div className="flex items-center gap-2 pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => setShowSpatialMatrix(!showSpatialMatrix)}
-              title="Toggle Spatial Density Matrix Breakdown"
-              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium border backdrop-blur-xl transition-all shadow-sm flex items-center gap-1.5 ${
-                showSpatialMatrix
-                  ? 'bg-slate-900 text-white border-slate-900'
-                  : isDark
-                    ? 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
-                    : 'bg-white/90 text-slate-700 border-white/80 hover:bg-white'
-              }`}
-            >
-              <span>▦</span>
-              <span>5×5 Matrix</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowDiagnostics(!showDiagnostics)}
-              title="Toggle Live Stream Health & Hardware Diagnostics Drawer"
-              className={`px-2.5 py-1.5 rounded-xl text-[11px] font-medium border backdrop-blur-xl transition-all shadow-sm flex items-center gap-1.5 ${
-                showDiagnostics
-                  ? 'bg-blue-600 text-white border-blue-600'
-                  : isDark
-                    ? 'bg-slate-900/90 text-slate-200 border-slate-700/80 hover:bg-slate-800'
-                    : 'bg-white/90 text-slate-700 border-white/80 hover:bg-white'
-              }`}
-            >
-              <span>ℹ</span>
-              <span>Diagnostics</span>
-            </button>
-
-            <div className={`backdrop-blur-xl border px-2.5 py-1.5 rounded-xl text-right ${
-              isDark ? 'bg-slate-900/90 border-slate-800 shadow-xl' : 'bg-white/90 border-white/80 shadow-glass'
-            }`}>
-              <div className="label-sm text-[9px] text-slate-400 leading-none">Vector Flow</div>
-              <div className="mt-0.5">
-                <FlowArrow degrees={flowDirection} density={density} />
-              </div>
+          {/* Vector Flow Card */}
+          <div className={`backdrop-blur-xl border px-3 py-2 rounded-xl text-right pointer-events-auto ${
+            isDark ? 'bg-slate-900/90 border-slate-800 shadow-xl' : 'bg-white/90 border-white/80 shadow-glass'
+          }`}>
+            <div className="label-sm text-[9px] text-slate-400 leading-none">Vector Flow</div>
+            <div className="mt-1">
+              <FlowArrow degrees={flowDirection} density={density} />
             </div>
           </div>
         </div>
@@ -1203,10 +1174,10 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
       )}
 
       {/* Card Footer */}
-      <div className={`px-4 py-2.5 border-t flex items-center justify-between text-xs backdrop-blur-sm ${
+      <div className={`px-5 py-3 border-t flex items-center justify-between text-xs backdrop-blur-sm ${
         isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white/70 border-slate-100 text-slate-600'
       }`}>
-        <div className="flex items-center gap-2 min-w-0 pr-3">
+        <div className="flex items-center gap-2 min-w-0 pr-2">
           {anomaly ? (
             <button
               type="button"
@@ -1215,16 +1186,47 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             >
               <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0 animate-pulse" />
               <span className="truncate">
-                {anomalyType ? `${anomalyType}` : 'Surge Anomaly'} · Click to Inspect Evidence
+                {anomalyType ? anomalyType : 'Surge Detected'} · Inspect →
               </span>
-              <span className="group-hover:translate-x-0.5 transition-transform">→</span>
             </button>
           ) : (
             <span className="text-slate-500 text-xs font-medium truncate">{description}</span>
           )}
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowSpatialMatrix(!showSpatialMatrix)}
+            title="Toggle Thermal Density Grid Breakdown"
+            className={`px-2 py-1 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 shadow-xs ${
+              showSpatialMatrix
+                ? 'bg-slate-900 text-white border-slate-900'
+                : isDark
+                  ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
+            }`}
+          >
+            <span>▦</span>
+            <span>Grid</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowDiagnostics(!showDiagnostics)}
+            title="Toggle Stream Pipeline Diagnostics"
+            className={`px-2 py-1 rounded-xl text-xs font-medium border transition-all flex items-center gap-1.5 shadow-xs ${
+              showDiagnostics
+                ? 'bg-blue-600 text-white border-blue-600'
+                : isDark
+                  ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
+            }`}
+          >
+            <span>ℹ</span>
+            <span>Diagnostics</span>
+          </button>
+
           {onInspectAnomaly && !anomaly && (
             <button
               type="button"
@@ -1235,13 +1237,13 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             </button>
           )}
 
-          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5">
+          <div className="text-[11px] text-slate-400 font-medium flex items-center gap-1.5 pl-1.5">
             <span
-              className={`w-1.5 h-1.5 rounded-full ${
+              className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                 anomaly ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'
               }`}
             />
-            <span>{lastUpdatedAgo <= 0 ? 'Live Sync' : `${lastUpdatedAgo}s ago`}</span>
+            <span className="whitespace-nowrap">{lastUpdatedAgo <= 0 ? 'Live Sync' : `${lastUpdatedAgo}s ago`}</span>
           </div>
         </div>
       </div>

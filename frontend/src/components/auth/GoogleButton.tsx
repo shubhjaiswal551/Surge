@@ -37,7 +37,7 @@ const GoogleButton: React.FC<GoogleButtonProps> = ({
   if (showDemo) {
     return (
       <div className="w-full space-y-3 animate-fade-in">
-        <div className="p-3 rounded-md bg-warn-bg border border-warn/30 text-warn-light text-xs">
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs">
           Firebase is not configured — you can continue as a demo operator.
         </div>
         <input
@@ -64,10 +64,10 @@ const GoogleButton: React.FC<GoogleButtonProps> = ({
         type="button"
         onClick={handleGoogle}
         disabled={loading}
-        className="w-full inline-flex items-center justify-center gap-3 px-4 py-2 rounded-md
-                   bg-white text-slate-700 font-medium text-xs border border-border-strong shadow-sm
-                   hover:bg-slate-50 active:bg-slate-100
-                   transition-colors duration-150
+        className="w-full inline-flex items-center justify-center gap-3 px-4 py-2.5 rounded-xl
+                   bg-white text-slate-700 font-medium text-xs border border-slate-200/90 shadow-sm
+                   hover:bg-slate-50 hover:border-slate-300 active:scale-[0.98]
+                   transition-all duration-150
                    disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden>
@@ -91,7 +91,7 @@ const GoogleButton: React.FC<GoogleButtonProps> = ({
         {loading ? 'Signing in…' : label}
       </button>
       {error && (
-        <p className="text-xs text-danger-light text-center">{error}</p>
+        <p className="text-xs text-rose-600 text-center">{error}</p>
       )}
     </div>
   );

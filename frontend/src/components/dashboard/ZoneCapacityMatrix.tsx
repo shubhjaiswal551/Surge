@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import AnimatedCounter from './AnimatedCounter';
 import type { CameraState, Alert } from '../../types/crowdEvent';
 import { deriveZoneCapacity, deriveZoneStatus, type ZoneSafetyStatus } from '../../config/crowdSafety';
 
@@ -44,11 +45,11 @@ const statusConfig: Record<
 
 export const ZoneCapacityMatrix: React.FC<ZoneCapacityMatrixProps> = ({ cameras, alerts }) => {
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+    <div className="card p-5">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100">
         <div>
-          <h2 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-blue-600">
+          <h2 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-2">
+            <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" className="text-[#0071e3]">
               <rect x="3" y="3" width="7" height="7" rx="1.5" />
               <rect x="14" y="3" width="7" height="7" rx="1.5" />
               <rect x="14" y="14" width="7" height="7" rx="1.5" />
@@ -62,7 +63,7 @@ export const ZoneCapacityMatrix: React.FC<ZoneCapacityMatrixProps> = ({ cameras,
         </div>
         <Link
           to="/cameras"
-          className="text-xs font-semibold text-blue-600 hover:text-blue-700 flex items-center gap-1 group shrink-0"
+          className="text-xs font-semibold text-[#0071e3] hover:text-[#0077ed] flex items-center gap-1 group shrink-0"
         >
           Open Tactical Camera Feeds
           <span className="group-hover:translate-x-0.5 transition-transform">→</span>
@@ -86,91 +87,120 @@ export const ZoneCapacityMatrix: React.FC<ZoneCapacityMatrixProps> = ({ cameras,
           return (
             <div
               key={c.cameraId}
-              className={`border rounded-xl p-4 bg-white transition-all hover:shadow-sm ${cfg.cardBorder}`}
+              className={`rounded-2xl p-5 bg-white/95 border card-interactive transition-all flex flex-col justify-between ${cfg.cardBorder}`}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="text-[11px] font-semibold text-slate-400 font-mono">
-                    {c.cameraId.toUpperCase()} {area ? `· ${area.toFixed(1)} m²` : '· Uncalibrated Area'}
-                  </span>
-                  <h3 className="text-sm font-bold text-slate-900 mt-0.5">{c.zoneName}</h3>
-                  <p className="text-xs text-slate-500">{c.description}</p>
-                </div>
-
-                <div className="text-right shrink-0 ml-2">
-                  {capacity !== null ? (
-                    <span className={`px-2.5 py-0.5 rounded-full text-xs border ${cfg.badgeClass}`}>
-                      {cfg.label} ({ratioPercent?.toFixed(0)}%)
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600 border border-slate-200">
-                      Uncalibrated
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* 3 Metrics: Headcount, Density (P/m²), Flow Speed (px/win) */}
-              <div className="mt-4 grid grid-cols-3 gap-2 py-2 border-y border-slate-100 text-center">
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 font-mono">Headcount</div>
-                  <div className="text-base font-extrabold text-slate-800 font-mono mt-0.5">
-                    {c.headcount}{' '}
-                    {capacity !== null && <span className="text-xs font-normal text-slate-400">/ {capacity}</span>}
+              {/* Header: Camera ID + Area & Status Badge */}
+              <div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[11px] font-semibold text-slate-400 font-mono tracking-wide">
+                      {c.cameraId.toUpperCase()} {area ? `· ${area.toFixed(1)} m²` : '· Uncalibrated Area'}
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-900 mt-1 leading-snug truncate">
+                      {c.zoneName}
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">{c.description}</p>
                   </div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 font-mono">Density</div>
-                  <div className={`text-base font-extrabold font-mono mt-0.5 ${cfg.textAccent}`}>
-                    {densityNum !== null ? (
-                      <>
-                        {densityNum} <span className="text-xs font-normal text-slate-400">P/m²</span>
-                      </>
+
+                  <div className="shrink-0">
+                    {capacity !== null ? (
+                      <span className={`px-2.5 py-1 rounded-full text-xs border font-medium inline-flex items-center gap-1.5 shadow-2xs ${cfg.badgeClass}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${cfg.barClass} ${statusKey === 'critical' || statusKey === 'high' ? 'radar-pip' : ''}`} />
+                        <span>{cfg.label}</span>
+                        <span className="opacity-75 font-mono text-[11px]">({ratioPercent?.toFixed(0)}%)</span>
+                      </span>
                     ) : (
-                      <span className="text-xs text-slate-400">N/A</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                        Uncalibrated
+                      </span>
                     )}
                   </div>
                 </div>
-                <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400 font-mono">Flow Speed</div>
-                  <div className="text-base font-extrabold text-slate-800 font-mono mt-0.5">
-                    {flowSpeed} <span className="text-[10px] font-normal text-slate-400">px/win</span>
+
+                {/* 3 Metrics: Headcount, Density (P/m²), Flow Speed (px/win) */}
+                <div className="mt-4 grid grid-cols-3 gap-2 py-3 px-2 border border-slate-100 bg-slate-50/70 rounded-xl text-center">
+                  <div className="px-1">
+                    <div className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Headcount</div>
+                    <div className="text-base font-bold text-slate-800 font-mono mt-1 tabular-nums flex items-baseline justify-center gap-1">
+                      <AnimatedCounter value={c.headcount} />
+                      {capacity !== null && <span className="text-xs font-normal text-slate-400">/ {capacity}</span>}
+                    </div>
+                  </div>
+                  <div className="px-1 border-x border-slate-200/60">
+                    <div className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Density</div>
+                    <div className={`text-base font-bold font-mono mt-1 tabular-nums ${cfg.textAccent}`}>
+                      {densityNum !== null ? (
+                        <span className="inline-flex items-baseline justify-center gap-1">
+                          <AnimatedCounter value={parseFloat(densityNum)} decimals={2} />
+                          <span className="text-xs font-normal text-slate-400 font-sans">P/m²</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-400 font-sans font-normal">N/A</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="px-1">
+                    <div className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Flow Speed</div>
+                    <div className="text-base font-bold text-slate-800 font-mono mt-1 tabular-nums inline-flex items-baseline justify-center gap-1 w-full">
+                      <AnimatedCounter value={parseFloat(flowSpeed)} decimals={1} />
+                      <span className="text-[10px] font-normal text-slate-400 font-sans">px/win</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Capacity Progress Bar */}
-              <div className="mt-3">
-                <div className="flex justify-between text-[11px] text-slate-500 mb-1">
-                  <span>Capacity Load</span>
-                  {capacity !== null ? (
-                    <span className="font-semibold text-slate-700">
-                      {c.headcount} of {capacity} Max
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">Area not set</span>
-                  )}
-                </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                  <div
-                    className={`h-1.5 rounded-full transition-all duration-300 ${cfg.barClass}`}
-                    style={{ width: `${ratioPercent ?? 0}%` }}
-                  />
+                {/* Capacity Progress Bar */}
+                <div className="mt-4">
+                  <div className="flex justify-between items-center text-xs mb-1.5">
+                    <span className="text-slate-500 font-medium">Capacity Load</span>
+                    {capacity !== null ? (
+                      <span className="font-semibold text-slate-700 tabular-nums text-xs">
+                        <AnimatedCounter value={c.headcount} /> <span className="font-normal text-slate-400">of</span> {capacity} Max
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">Area not set</span>
+                    )}
+                  </div>
+                  <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-2 rounded-full live-shimmer-bar transition-all duration-700 ease-out ${cfg.barClass}`}
+                      style={{ width: `${ratioPercent ?? 0}%` }}
+                    />
+                  </div>
                 </div>
               </div>
 
               {/* Footer info & Deep link */}
-              <div className="mt-3.5 flex items-center justify-between pt-2 border-t border-slate-50">
-                <span className="text-[11px] text-slate-500 font-medium flex items-center gap-1.5">
-                  <span className={`w-1.5 h-1.5 rounded-full ${cfg.barClass}`} />
-                  <span>Vector: {c.flowDirection}°</span>
-                  {hasSevereIncident && <span className="text-rose-600 font-bold ml-1">· Active Alert</span>}
-                </span>
+              <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-xs text-slate-500 font-medium min-w-0">
+                  <span className="inline-flex items-center gap-1.5 shrink-0 bg-slate-100/80 px-2 py-1 rounded-lg">
+                    <svg
+                      className="w-3.5 h-3.5 text-slate-500 transition-transform duration-700 ease-out shrink-0"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{ transform: `rotate(${c.flowDirection ?? 0}deg)` }}
+                    >
+                      <line x1="12" y1="19" x2="12" y2="5" />
+                      <polyline points="5 12 12 5 19 12" />
+                    </svg>
+                    <span className="font-mono text-[11px] text-slate-600 font-semibold">{c.flowDirection}°</span>
+                  </span>
+                  {hasSevereIncident && (
+                    <span className="text-rose-600 font-semibold inline-flex items-center gap-1.5 shrink-0 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200/80 text-[11px]">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 radar-pip" />
+                      Active Alert
+                    </span>
+                  )}
+                </div>
                 <Link
                   to={`/cameras?focus=${c.cameraId}`}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 transition"
+                  className="px-3.5 py-1.5 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200/80 shadow-2xs active:scale-[0.98] transition-all flex items-center gap-1.5 shrink-0"
                 >
-                  Watch Live Feed →
+                  <span>Watch Live</span>
+                  <span className="text-slate-400">→</span>
                 </Link>
               </div>
             </div>

@@ -69,20 +69,20 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount }) => {
   };
 
   return (
-    <aside className="w-64 shrink-0 h-full flex flex-col bg-white/75 backdrop-blur-xl border-r border-slate-200/70 shadow-[1px_0_4px_rgba(0,0,0,0.01)]">
+    <aside className="w-64 shrink-0 h-full flex flex-col bg-white/80 backdrop-blur-xl border-r border-slate-200/70 shadow-[1px_0_4px_rgba(0,0,0,0.01)]">
       {/* Brand Header */}
       <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
             alt="SafeCrowd Logo"
-            className="h-10 w-auto max-w-[48px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
+            className="h-9 w-auto max-w-[44px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
           />
           <div className="flex flex-col leading-tight">
             <span className="text-slate-900 font-bold tracking-tight text-base font-sans">
               SafeCrowd
             </span>
-            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider font-mono">
+            <span className="text-[10px] text-slate-400 font-medium tracking-wide font-sans">
               Control Station
             </span>
           </div>
@@ -90,7 +90,7 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount }) => {
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3.5 space-y-1 overflow-y-auto">
         {NAV_ITEMS.map((item) => {
           const active = isActive(item.to);
           const showBadge = item.to === '/alerts' && effectiveAlertCount > 0;
@@ -98,18 +98,20 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount }) => {
             <NavLink
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all ${
+              className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs transition-all ${
                 active
-                  ? 'bg-slate-200/70 text-[#0071e3] font-semibold shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                  ? 'bg-[#0071e3] text-white font-semibold shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80 font-medium'
               }`}
             >
-              <span className={`shrink-0 ${active ? 'text-[#0071e3]' : 'text-slate-400'}`}>
+              <span className={`shrink-0 ${active ? 'text-white' : 'text-slate-400'}`}>
                 {item.icon}
               </span>
               <span className="flex-1 truncate">{item.label}</span>
               {showBadge && (
-                <span className="min-w-[18px] h-[18px] px-1.5 rounded-full bg-[#ff3b30] text-[10px] font-bold text-white flex items-center justify-center shadow-sm">
+                <span className={`min-w-[18px] h-[18px] px-1.5 rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs ${
+                  active ? 'bg-white/25 text-white' : 'bg-[#ff3b30] text-white'
+                }`}>
                   {effectiveAlertCount > 99 ? '99+' : effectiveAlertCount}
                 </span>
               )}

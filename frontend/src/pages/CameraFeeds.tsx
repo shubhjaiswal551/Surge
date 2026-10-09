@@ -447,14 +447,14 @@ const CameraFeeds: React.FC = () => {
   }, [filteredCameras, heroCam]);
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden transition-colors duration-300 ${isSocDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-bg-primary text-slate-900'}`}>
+    <div className={`h-screen w-screen flex overflow-hidden transition-colors duration-300 ${isSocDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#f5f5f7] text-slate-900'}`}>
       {!isWallMode && <Sidebar alertCount={unacknowledged} />}
 
       <div className="flex-1 flex flex-col min-w-0">
         {!isWallMode && <StatusBar activeAlertCount={unacknowledged} />}
 
         <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 md:px-8 py-6 space-y-6 max-w-[1800px] mx-auto">
             {/* Operator Toast Notification */}
             {toastMessage && (
               <div className="fixed top-16 right-8 z-50 bg-slate-900/95 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl border border-white/20 backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
@@ -468,23 +468,23 @@ const CameraFeeds: React.FC = () => {
               <div>
                 <div className="flex items-center gap-3">
                   <h1 className={`text-lg font-bold tracking-tight ${isSocDark ? 'text-white' : 'text-slate-900'}`}>
-                    Optical Surveillance Matrix
+                    Live Camera Feeds
                   </h1>
                   <span className="chip-safe font-sans font-medium text-[11px]">
                     {activeCamerasCount} / {cameras.length} Active Feeds
                   </span>
                   <span className={`hidden md:inline-flex px-2 py-0.5 rounded-full border text-[11px] font-mono ${isSocDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200/80 text-slate-600'}`}>
-                    Total Monitored: {totalHeadcount.toLocaleString()} P
+                    Total Monitored: {totalHeadcount.toLocaleString()} People
                   </span>
                   {isWsConnected && (
                     <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-medium flex items-center gap-1">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                      Live Stream Worker Connected
+                      Live Stream Connected
                     </span>
                   )}
                 </div>
                 <p className={`text-xs mt-0.5 ${isSocDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  High-throughput RTSP video matrix with hardware-accelerated YOLO perception, spatial heatmaps & kinetic flow vectors.
+                  Real-time video surveillance with AI crowd detection, heatmaps, and movement analysis.
                 </p>
               </div>
 
@@ -529,22 +529,44 @@ const CameraFeeds: React.FC = () => {
                   <span>{soundActive ? (isAlarmSounding ? 'SURGE ALARM' : 'Audio Alert ON') : 'Audio Muted'}</span>
                 </button>
 
-                {/* SOC High-Contrast Dark Room Mode Toggle */}
+                {/* Dark Room Mode Toggle */}
                 <button
                   type="button"
                   onClick={() => {
                     const next = !isSocDark;
                     setIsSocDark(next);
-                    showToast(next ? 'SOC Dark Room Mode enabled' : 'Day Light Mode enabled');
+                    showToast(next ? 'Dark Room Mode enabled' : 'Day Light Mode enabled');
                   }}
-                  title={isSocDark ? 'Switch to Standard Day Light Mode' : 'Switch to High-Contrast SOC Dark Room Mode (Low-Light Command Center)'}
+                  title={isSocDark ? 'Switch to Standard Day Light Mode' : 'Switch to Low-Light Dark Room Mode'}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isSocDark
-                      ? 'bg-indigo-600 text-white border-indigo-500'
+                      ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
                       : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
                   }`}
                 >
-                  <span>{isSocDark ? '🌙 SOC Dark' : '☀️ Day Light'}</span>
+                  {isSocDark ? (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" />
+                        <line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" />
+                        <line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                      </svg>
+                      <span>Day Light</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                      </svg>
+                      <span>Dark Room</span>
+                    </>
+                  )}
                 </button>
 
                 {/* Auto-Tour Surveillance Loop */}
@@ -567,7 +589,7 @@ const CameraFeeds: React.FC = () => {
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
                   </svg>
-                  <span>{isAutoTour ? `Tour Active (${tourSecondsLeft}s)` : 'Auto-Tour'}</span>
+                  <span>{isAutoTour ? `Tour (${tourSecondsLeft}s)` : 'Auto-Tour'}</span>
                 </button>
 
                 {/* Video Wall / Theatre Mode Toggle */}
@@ -577,7 +599,7 @@ const CameraFeeds: React.FC = () => {
                   title={isWallMode ? 'Exit Video Wall Mode' : 'Enter Theatre Video Wall Mode (Hide Sidebars)'}
                   className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isWallMode
-                      ? 'bg-blue-600 text-white border-blue-600'
+                      ? 'bg-[#0071e3] text-white border-[#0071e3]'
                       : isSocDark
                         ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
                         : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
@@ -595,7 +617,7 @@ const CameraFeeds: React.FC = () => {
 
             {/* VMS Operational Toolbar: Search, Filters, Sorting & Layouts */}
             <div className={`backdrop-blur-md border rounded-2xl p-3 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 flex-wrap transition-colors duration-200 ${
-              isSocDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'bg-white/80 border-slate-200/80'
+              isSocDark ? 'bg-slate-900/90 border-slate-800 text-white' : 'card'
             }`}>
               {/* Left: Search Bar & Density Status Filter Pills */}
               <div className="flex items-center gap-2.5 flex-wrap flex-1 min-w-[280px]">
@@ -629,66 +651,32 @@ const CameraFeeds: React.FC = () => {
                   )}
                 </div>
 
-                {/* Filter Pills */}
-                <div className={`flex items-center p-0.5 rounded-xl border text-[11px] ${
-                  isSocDark ? 'bg-slate-800/90 border-slate-700' : 'bg-slate-100/80 border-slate-200/60'
-                }`}>
-                  <button
-                    type="button"
-                    onClick={() => setFilterStatus('all')}
-                    className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                      filterStatus === 'all'
-                        ? isSocDark
-                          ? 'bg-slate-700 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    All ({cameras.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterStatus('anomaly')}
-                    className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                      filterStatus === 'anomaly'
-                        ? 'bg-rose-500 text-white shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Anomalies ({alerts.filter((a) => !a.acknowledged).length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterStatus('high_critical')}
-                    className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                      filterStatus === 'high_critical'
-                        ? 'bg-amber-500 text-white shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Surge / High
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFilterStatus('normal')}
-                    className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                      filterStatus === 'normal'
-                        ? isSocDark
-                          ? 'bg-slate-700 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Normal
-                  </button>
+                {/* Filter Pills with macOS Segmented Control */}
+                <div className="mac-segmented flex items-center">
+                  {(['all', 'anomaly', 'high_critical', 'normal'] as const).map((status) => {
+                    const labels = {
+                      all: `All (${cameras.length})`,
+                      anomaly: `Anomalies (${alerts.filter((a) => !a.acknowledged).length})`,
+                      high_critical: 'Surge / High',
+                      normal: 'Normal',
+                    };
+                    return (
+                      <button
+                        key={status}
+                        type="button"
+                        onClick={() => setFilterStatus(status)}
+                        className={`px-2.5 py-1 text-xs transition-all ${
+                          filterStatus === status
+                            ? 'mac-pill-active'
+                            : isSocDark
+                              ? 'text-slate-400 hover:text-white font-medium'
+                              : 'text-slate-600 hover:text-slate-900 font-medium'
+                        }`}
+                      >
+                        {labels[status]}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -714,71 +702,28 @@ const CameraFeeds: React.FC = () => {
                 </div>
 
                 {/* Layout Mode Segmented Control */}
-                <div className={`p-0.5 rounded-xl border flex items-center ${isSocDark ? 'bg-slate-800 border-slate-700' : 'bg-slate-100 border-slate-200/60'}`}>
-                  <button
-                    type="button"
-                    onClick={() => setLayout('grid')}
-                    title="2x2 Matrix Surveillance View"
-                    className={`px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                      layout === 'grid'
-                        ? isSocDark
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Matrix 2×2
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLayout('hero')}
-                    title="1+5 Hero Grid: 1 Large Primary Surveillance Stage + Auxiliary Channel Strip"
-                    className={`px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                      layout === 'hero'
-                        ? isSocDark
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    1+Hero
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLayout('dense')}
-                    title="Dense 3x3 Multi-channel Wall"
-                    className={`px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                      layout === 'dense'
-                        ? isSocDark
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Dense 3×3
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLayout('focus')}
-                    title="Single Camera Focused Detail Monitor"
-                    className={`px-2.5 py-1 rounded-lg transition-all text-xs font-medium ${
-                      layout === 'focus'
-                        ? isSocDark
-                          ? 'bg-blue-600 text-white shadow-xs'
-                          : 'bg-white text-slate-900 shadow-xs'
-                        : isSocDark
-                          ? 'text-slate-400 hover:text-white'
-                          : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Focus
-                  </button>
+                <div className="mac-segmented flex items-center">
+                  {([
+                    { id: 'grid', label: 'Grid View' },
+                    { id: 'hero', label: 'Main Feed' },
+                    { id: 'dense', label: 'All Cameras' },
+                    { id: 'focus', label: 'Single View' },
+                  ] as const).map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setLayout(item.id)}
+                      className={`px-2.5 py-1 text-xs transition-all ${
+                        layout === item.id
+                          ? 'mac-pill-active'
+                          : isSocDark
+                            ? 'text-slate-400 hover:text-white font-medium'
+                            : 'text-slate-600 hover:text-slate-900 font-medium'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -802,7 +747,7 @@ const CameraFeeds: React.FC = () => {
               </div>
             ) : layout === 'hero' ? (
               /* 1+5 HERO GRID MODE */
-              <div className="flex flex-col lg:flex-row gap-5 items-start">
+              <div className="flex flex-col lg:flex-row gap-6 items-start">
                 {/* Primary Hero Stage (Takes prominent 68% width on desktop) */}
                 <div className="w-full lg:flex-1 min-w-0">
                   {heroCam && (
@@ -810,10 +755,10 @@ const CameraFeeds: React.FC = () => {
                       <div className="flex items-center justify-between px-1">
                         <span className="text-xs font-semibold text-blue-500 flex items-center gap-1.5 uppercase tracking-wider">
                           <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-                          PRIMARY HERO MONITOR · {heroCam.zoneName}
+                          Main Monitor · {heroCam.zoneName}
                         </span>
                         <span className="text-[11px] text-slate-400">
-                          Click any auxiliary feed on the right to promote to primary
+                          Click any feed on the right to set as main view
                         </span>
                       </div>
                       <CameraPanel
@@ -890,7 +835,7 @@ const CameraFeeds: React.FC = () => {
                             }}
                             className="absolute top-2 left-2 z-30 px-2 py-0.5 rounded-md bg-slate-900/85 hover:bg-blue-600 text-white text-[10px] font-medium backdrop-blur-md opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
                           >
-                            Promote to Hero ↗
+                            Set as Main View ↗
                           </button>
                         </div>
                       );
@@ -987,7 +932,7 @@ const CameraFeeds: React.FC = () => {
             ) : (
               /* MATRIX 2X2 OR DENSE 3X3 GRID MODE */
               <div
-                className={`grid gap-4.5 ${
+                className={`grid gap-6 ${
                   layout === 'dense'
                     ? 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
                     : 'grid-cols-1 lg:grid-cols-2'

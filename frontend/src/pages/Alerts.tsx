@@ -58,53 +58,62 @@ const Alerts: React.FC = () => {
   const unacknowledged = alerts.filter((a) => !a.acknowledged).length;
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-bg-primary">
+    <div className="h-screen w-screen flex overflow-hidden bg-[#f5f5f7]">
       <Sidebar alertCount={unacknowledged} />
       <div className="flex-1 flex flex-col min-w-0">
         <StatusBar activeAlertCount={unacknowledged} />
 
         <main className="flex-1 overflow-y-auto min-h-0">
           <div className="px-6 py-5 h-full flex flex-col min-h-0">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 shrink-0 pb-3 border-b border-border">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 shrink-0 pb-3 border-b border-slate-200/70">
               <div>
                 <div className="flex items-center gap-2.5">
-                  <h1 className="text-base font-semibold text-text-primary uppercase tracking-wider font-mono">
-                    INCIDENT ALERT TRIAGE
+                  <h1 className="text-lg font-bold text-slate-900 tracking-tight font-sans">
+                    Incident Alert Triage
                   </h1>
-                  <span className="chip-danger font-mono">
-                    {unacknowledged} UNACKNOWLEDGED
-                  </span>
+                  {unacknowledged > 0 ? (
+                    <span className="chip-danger">
+                      {unacknowledged} Unacknowledged
+                    </span>
+                  ) : (
+                    <span className="chip-safe">
+                      All Clear
+                    </span>
+                  )}
                 </div>
-                <p className="text-xs text-text-muted mt-0.5 font-mono">
-                  Real-time spatial anomaly stream and threshold violation triage.
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Real-time spatial anomaly stream and automated threshold violation triage.
                 </p>
               </div>
 
               {/* Triage action controls */}
-              <div className="flex items-center gap-2 font-mono text-xs">
-                {/* Severity filter buttons */}
-                <div className="flex items-center p-0.5 rounded bg-bg-secondary border border-border">
-                  {(['all', 'critical', 'high', 'warning', 'info'] as const).map((sev) => (
-                    <button
-                      key={sev}
-                      type="button"
-                      onClick={() => setSelectedSeverity(sev)}
-                      className={`px-2 py-1 rounded text-[10px] uppercase font-semibold transition-colors ${
-                        selectedSeverity === sev
-                          ? 'bg-bg-tertiary text-text-primary'
-                          : 'text-text-muted hover:text-text-secondary'
-                      }`}
-                    >
-                      {sev}
-                    </button>
-                  ))}
+              <div className="flex items-center gap-3">
+                {/* macOS Segmented Severity filter buttons */}
+                <div className="mac-segmented flex items-center">
+                  {(['all', 'critical', 'high', 'warning', 'info'] as const).map((sev) => {
+                    const label = sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1);
+                    return (
+                      <button
+                        key={sev}
+                        type="button"
+                        onClick={() => setSelectedSeverity(sev)}
+                        className={`px-2.5 py-1 text-xs transition-all ${
+                          selectedSeverity === sev
+                            ? 'mac-pill-active'
+                            : 'text-slate-600 hover:text-slate-900 font-medium'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {unacknowledged > 0 && (
                   <button
                     type="button"
                     onClick={handleAcknowledgeAll}
-                    className="btn-secondary text-[11px] font-mono"
+                    className="btn-secondary text-xs"
                   >
                     Acknowledge All
                   </button>

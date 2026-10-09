@@ -59,7 +59,7 @@ const StatusBar: React.FC<StatusBarProps> = ({
         >
           <span
             className={`w-2 h-2 rounded-full ${
-              hasAlerts ? 'bg-rose-500 animate-ping' : 'bg-emerald-500'
+              hasAlerts ? 'bg-rose-500 animate-ping' : 'bg-emerald-500 radar-pip'
             }`}
           />
           <span>{systemStatusLabel}</span>
@@ -73,18 +73,15 @@ const StatusBar: React.FC<StatusBarProps> = ({
 
         <div className="hidden lg:flex items-center gap-2.5 text-xs text-slate-500 font-medium">
           <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/60 shadow-sm text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 radar-pip" />
             <span>{activeFeedsCount} / {cameras.length} Feeds Online</span>
           </span>
-          <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/60 shadow-sm text-[11px]">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="4" y="4" width="16" height="16" rx="2" />
-              <rect x="9" y="9" width="6" height="6" />
-              <line x1="9" y1="1" x2="9" y2="4" />
-              <line x1="15" y1="1" x2="15" y2="4" />
-              <line x1="9" y1="20" x2="9" y2="23" />
-              <line x1="15" y1="20" x2="15" y2="23" />
-            </svg>
+          <span className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100/90 border border-slate-200/60 shadow-sm text-[11px]">
+            <span className="flex items-end gap-0.5 h-3">
+              <span className="w-0.5 bg-emerald-500 rounded-full animate-eq-1" />
+              <span className="w-0.5 bg-emerald-500 rounded-full animate-eq-2" />
+              <span className="w-0.5 bg-emerald-500 rounded-full animate-eq-3" />
+            </span>
             <span>YOLOv8s Pipeline · 32ms</span>
           </span>
         </div>
