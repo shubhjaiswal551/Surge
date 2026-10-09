@@ -6,6 +6,7 @@ import ZoneCapacityMatrix from '../components/dashboard/ZoneCapacityMatrix';
 import RiskScoreGauge from '../components/dashboard/RiskScoreGauge';
 import OperationalDispatchHub from '../components/dashboard/OperationalDispatchHub';
 import AnomalyDistributionCard from '../components/dashboard/AnomalyDistributionCard';
+import AnimatedCounter from '../components/dashboard/AnimatedCounter';
 import { useCrowdContext } from '../context/CrowdContext';
 import {
   deriveZoneCapacity,
@@ -178,7 +179,7 @@ const Dashboard: React.FC = () => {
   const fillPercent = ((totalHeadcount / totalCapacity) * 100).toFixed(1);
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-bg-primary">
+    <div className="h-screen w-screen flex overflow-hidden bg-[#f5f5f7]">
       <Sidebar alertCount={unacknowledgedAlertsCount} />
       <div className="flex-1 flex flex-col min-w-0">
         <StatusBar activeAlertCount={unacknowledgedAlertsCount} />
@@ -192,36 +193,43 @@ const Dashboard: React.FC = () => {
         )}
 
         <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-6 md:px-8 py-6 space-y-6 max-w-[1720px] mx-auto">
             
             {/* Top Operational KPI Stats Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-5">
               
               {/* KPI 1: People Monitored */}
-              <div className="card p-4 flex flex-col justify-between hover:border-slate-300">
+              <div className="card card-interactive p-5 flex flex-col justify-between hover:border-slate-300">
                 <div className="flex items-start justify-between">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     People Monitored
                   </span>
-                  <span className={isWsConnected ? 'chip-safe' : 'chip bg-blue-50 text-blue-600 border-blue-200'}>
-                    {isWsConnected ? 'Live Backend' : 'Real-Time'}
+                  <span className={isWsConnected ? 'chip-safe flex items-center gap-1.5' : 'chip bg-blue-50 text-blue-600 border-blue-200'}>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 radar-pip" />
+                    <span>{isWsConnected ? 'Live Sensing' : 'Real-Time'}</span>
                   </span>
                 </div>
-                <div className="font-sans text-3xl font-extrabold my-2 tracking-tight tabular-nums text-slate-900">
-                  {totalHeadcount.toLocaleString()}{' '}
+                <div className="font-sans text-3xl font-extrabold my-2.5 tracking-tight tabular-nums text-slate-900 flex items-baseline gap-1.5">
+                  <AnimatedCounter value={totalHeadcount} />
                   <span className="text-xs font-normal text-slate-400">/ {totalCapacity} cap</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
-                  <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${Math.min(100, parseFloat(fillPercent))}%` }} />
+                <div className="w-full bg-slate-100/90 rounded-full h-1.5 overflow-hidden mb-2.5">
+                  <div
+                    className="bg-[#0071e3] h-1.5 rounded-full transition-all duration-700 ease-out live-shimmer-bar"
+                    style={{ width: `${Math.min(100, parseFloat(fillPercent))}%` }}
+                  />
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium flex justify-between">
+                <div className="text-[11px] text-slate-500 font-medium flex justify-between items-center">
                   <span>{fillPercent}% Overall Load</span>
-                  <span className="text-emerald-600 font-semibold">Capacity Safe</span>
+                  <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    Capacity Safe
+                  </span>
                 </div>
               </div>
 
-              {/* KPI 2: Overall Safety Risk Index (Single band color across all elements) */}
-              <div className={`card p-4 flex flex-col justify-between ${riskBandStyles.border}`}>
+              {/* KPI 2: Overall Safety Risk Index */}
+              <div className={`card card-interactive p-5 flex flex-col justify-between ${riskBandStyles.border}`}>
                 <div className="flex items-start justify-between">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Safety Risk Index
@@ -230,12 +238,15 @@ const Dashboard: React.FC = () => {
                     {riskBandStyles.label}
                   </span>
                 </div>
-                <div className={`font-sans text-3xl font-extrabold my-2 tracking-tight tabular-nums ${riskBandStyles.accent}`}>
-                  {risk.score}{' '}
+                <div className={`font-sans text-3xl font-extrabold my-2.5 tracking-tight tabular-nums flex items-baseline gap-1.5 ${riskBandStyles.accent}`}>
+                  <AnimatedCounter value={risk.score} />
                   <span className="text-xs font-normal text-slate-400">/ 100 Index</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
-                  <div className={`h-1.5 rounded-full transition-all duration-300 ${riskBandStyles.bar}`} style={{ width: `${risk.score}%` }} />
+                <div className="w-full bg-slate-100/90 rounded-full h-1.5 overflow-hidden mb-2.5">
+                  <div
+                    className={`h-1.5 rounded-full transition-all duration-700 ease-out live-shimmer-bar ${riskBandStyles.bar}`}
+                    style={{ width: `${risk.score}%` }}
+                  />
                 </div>
                 <div className="text-[11px] text-slate-600 font-medium truncate" title={risk.topContributor}>
                   {risk.topContributor}
@@ -243,7 +254,7 @@ const Dashboard: React.FC = () => {
               </div>
 
               {/* KPI 3: Active Alerts & Today's Incidents */}
-              <div className="card p-4 flex flex-col justify-between hover:border-slate-300">
+              <div className="card card-interactive p-5 flex flex-col justify-between hover:border-slate-300">
                 <div className="flex items-start justify-between">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Unresolved Alerts
@@ -253,44 +264,51 @@ const Dashboard: React.FC = () => {
                   </span>
                 </div>
                 <div
-                  className={`font-sans text-3xl font-extrabold my-2 tracking-tight tabular-nums ${
+                  className={`font-sans text-3xl font-extrabold my-2.5 tracking-tight tabular-nums flex items-baseline gap-1.5 ${
                     unacknowledgedAlertsCount > 0 ? 'text-rose-600' : 'text-emerald-600'
                   }`}
                 >
-                  {unacknowledgedAlertsCount}{' '}
+                  <AnimatedCounter value={unacknowledgedAlertsCount} />
                   <span className="text-xs font-normal text-slate-400">pending</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
+                <div className="w-full bg-slate-100/90 rounded-full h-1.5 overflow-hidden mb-2.5">
                   <div
-                    className={`h-1.5 rounded-full ${unacknowledgedAlertsCount > 0 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                    className={`h-1.5 rounded-full transition-all duration-700 ease-out live-shimmer-bar ${
+                      unacknowledgedAlertsCount > 0 ? 'bg-rose-500' : 'bg-emerald-500'
+                    }`}
                     style={{ width: `${Math.min(100, unacknowledgedAlertsCount * 25)}%` }}
                   />
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium flex justify-between">
-                  <span>{todayIncidentsCount} incidents logged today</span>
+                <div className="text-[11px] text-slate-500 font-medium flex justify-between items-center">
+                  <span>{todayIncidentsCount} incidents today</span>
                   <span className={unacknowledgedAlertsCount > 0 ? 'text-rose-600 font-semibold' : 'text-emerald-600 font-semibold'}>
                     {unacknowledgedAlertsCount > 0 ? 'Triage' : 'Nominal'}
                   </span>
                 </div>
               </div>
 
-              {/* KPI 4: Cameras Online (Consistent with StatusBar) */}
-              <div className="card p-4 flex flex-col justify-between hover:border-slate-300">
+              {/* KPI 4: Cameras Online */}
+              <div className="card card-interactive p-5 flex flex-col justify-between hover:border-slate-300">
                 <div className="flex items-start justify-between">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                     Cameras & Sensors
                   </span>
                   <span className="chip-safe font-mono">{activeFeedsCount} / {cameras.length} Active</span>
                 </div>
-                <div className="font-sans text-3xl font-extrabold my-2 tracking-tight tabular-nums text-emerald-600">
-                  {activeFeedsCount} / {cameras.length}
+                <div className="font-sans text-3xl font-extrabold my-2.5 tracking-tight tabular-nums text-emerald-600 flex items-baseline gap-1">
+                  <AnimatedCounter value={activeFeedsCount} />
+                  <span className="text-slate-400">/</span>
+                  <span>{cameras.length}</span>
                 </div>
-                <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden mb-2">
-                  <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: '100%' }} />
+                <div className="w-full bg-slate-100/90 rounded-full h-1.5 overflow-hidden mb-2.5">
+                  <div className="bg-emerald-500 h-1.5 rounded-full live-shimmer-bar" style={{ width: '100%' }} />
                 </div>
-                <div className="text-[11px] text-slate-500 font-medium flex justify-between">
+                <div className="text-[11px] text-slate-500 font-medium flex justify-between items-center">
                   <span>YOLOv8s Pipeline</span>
-                  <span className="text-emerald-600 font-semibold">100% Health</span>
+                  <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    100% Health
+                  </span>
                 </div>
               </div>
 
@@ -313,10 +331,10 @@ const Dashboard: React.FC = () => {
                 <ZoneCapacityMatrix cameras={cameras} alerts={alerts} />
 
                 {/* 2. Headcount Telemetry Trend Chart */}
-                <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
+                <div className="card p-5">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                     <div>
-                      <div className="text-sm font-bold text-slate-900 tracking-tight">
+                      <div className="text-xs font-bold text-slate-900 tracking-tight">
                         Headcount Telemetry Trend
                       </div>
                       <div className="text-xs text-slate-500 mt-0.5">
@@ -324,33 +342,33 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <div className="flex items-center p-0.5 rounded-lg bg-slate-100 border border-slate-200 text-xs font-mono">
+                      <div className="mac-segmented flex items-center">
                         {(['5m', '15m', '1h'] as const).map((w) => (
                           <button
                             key={w}
                             type="button"
                             onClick={() => setTimeWindow(w)}
-                            className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                            className={`px-3 py-1 text-xs transition-all ${
                               timeWindow === w
-                                ? 'bg-white text-slate-900 shadow-xs'
-                                : 'text-slate-500 hover:text-slate-800'
+                                ? 'mac-pill-active'
+                                : 'text-slate-600 hover:text-slate-900 font-medium'
                             }`}
                           >
                             {w}
                           </button>
                         ))}
                       </div>
-                      <div className="hidden sm:flex items-center gap-3 text-xs font-mono text-slate-600">
+                      <div className="hidden sm:flex items-center gap-3 text-xs font-sans text-slate-600">
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" />
+                          <span className="w-2 h-2 rounded-full bg-rose-500" />
                           Terminal Gate
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" />
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
                           North Corridor
                         </span>
                         <span className="inline-flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-sm bg-blue-500" />
+                          <span className="w-2 h-2 rounded-full bg-blue-500" />
                           Concourse
                         </span>
                       </div>
@@ -409,6 +427,9 @@ const Dashboard: React.FC = () => {
                           stroke="#f43f5e"
                           strokeWidth={2}
                           fill="url(#gRose)"
+                          isAnimationActive={true}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                         <Area
                           type="monotone"
@@ -417,6 +438,9 @@ const Dashboard: React.FC = () => {
                           stroke="#f59e0b"
                           strokeWidth={1.5}
                           fill="url(#gAmber)"
+                          isAnimationActive={true}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                         <Area
                           type="monotone"
@@ -425,6 +449,9 @@ const Dashboard: React.FC = () => {
                           stroke="#3b82f6"
                           strokeWidth={1.5}
                           fill="url(#gBlue)"
+                          isAnimationActive={true}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                         />
                       </AreaChart>
                     </ResponsiveContainer>

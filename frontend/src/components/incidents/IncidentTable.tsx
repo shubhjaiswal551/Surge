@@ -69,60 +69,88 @@ export const IncidentFilters: React.FC<IncidentFiltersProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-500">Zone / Sensor</label>
-          <select
-            className="input-field text-xs rounded-xl"
-            value={selectedZone}
-            onChange={(e) => onZoneChange(e.target.value)}
-          >
-            <option value="all">All Zones</option>
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              className="w-full appearance-none px-3.5 py-2 pr-8 rounded-xl bg-slate-50/80 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 text-slate-800 text-xs font-sans focus:outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 transition-all cursor-pointer shadow-xs"
+              value={selectedZone}
+              onChange={(e) => onZoneChange(e.target.value)}
+            >
+              <option value="all">All Zones</option>
+              {zones.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m7 15 5 5 5-5" />
+                <path d="m7 9 5-5 5 5" />
+              </svg>
+            </div>
+          </div>
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-500">Severity Tier</label>
-          <select
-            className="input-field text-xs rounded-xl"
-            value={selectedSeverity}
-            onChange={(e) => onSeverityChange(e.target.value)}
-          >
-            <option value="all">All Severities</option>
-            <option value="critical">Critical</option>
-            <option value="high">High</option>
-            <option value="warning">Warning</option>
-            <option value="info">Info</option>
-          </select>
+          <div className="relative">
+            <select
+              className="w-full appearance-none px-3.5 py-2 pr-8 rounded-xl bg-slate-50/80 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 text-slate-800 text-xs font-sans focus:outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 transition-all cursor-pointer shadow-xs"
+              value={selectedSeverity}
+              onChange={(e) => onSeverityChange(e.target.value)}
+            >
+              <option value="all">All Severities</option>
+              <option value="critical">Critical</option>
+              <option value="high">High</option>
+              <option value="warning">Warning</option>
+              <option value="info">Info</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m7 15 5 5 5-5" />
+                <path d="m7 9 5-5 5 5" />
+              </svg>
+            </div>
+          </div>
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-500">Triage Status</label>
-          <select
-            className="input-field text-xs rounded-xl"
-            value={selectedStatus}
-            onChange={(e) => onStatusChange(e.target.value)}
-          >
-            <option value="all">All Statuses</option>
-            <option value="open">Open (Unacknowledged)</option>
-            <option value="acknowledged">Acknowledged</option>
-            <option value="resolved">Resolved</option>
-          </select>
+          <div className="relative">
+            <select
+              className="w-full appearance-none px-3.5 py-2 pr-8 rounded-xl bg-slate-50/80 hover:bg-slate-100/60 focus:bg-white border border-slate-200/90 text-slate-800 text-xs font-sans focus:outline-none focus:border-[#0071e3] focus:ring-2 focus:ring-[#0071e3]/20 transition-all cursor-pointer shadow-xs"
+              value={selectedStatus}
+              onChange={(e) => onStatusChange(e.target.value)}
+            >
+              <option value="all">All Statuses</option>
+              <option value="open">Open (Unacknowledged)</option>
+              <option value="acknowledged">Acknowledged</option>
+              <option value="resolved">Resolved</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none text-slate-400">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m7 15 5 5 5-5" />
+                <path d="m7 9 5-5 5 5" />
+              </svg>
+            </div>
+          </div>
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-500">Date From</label>
           <input
             type="date"
-            className="input-field text-xs rounded-xl"
+            className="input-field text-xs rounded-xl shadow-xs"
             value={dateFrom}
             onChange={(e) => onDateFromChange(e.target.value)}
           />
         </div>
+
         <div className="space-y-1.5">
           <label className="text-xs font-semibold text-slate-500">Date To</label>
           <input
             type="date"
-            className="input-field text-xs rounded-xl"
+            className="input-field text-xs rounded-xl shadow-xs"
             value={dateTo}
             onChange={(e) => onDateToChange(e.target.value)}
           />
@@ -149,13 +177,13 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-slate-100 bg-slate-50/80 text-left">
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Timestamp</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Zone</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Anomaly Type</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Severity</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Status</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider">Handled By</th>
-              <th className="px-4 py-3 text-[11px] uppercase text-slate-500 font-semibold tracking-wider text-right">
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Timestamp</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Zone</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Anomaly Type</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Severity</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Status</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider">Handled By</th>
+              <th className="px-4 py-3 text-[11px] uppercase text-slate-400 font-semibold tracking-wider text-right">
                 Actions
               </th>
             </tr>
@@ -174,7 +202,7 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({
               incidents.map((inc) => (
                 <tr
                   key={inc.id}
-                  className="hover:bg-slate-50/80 transition-colors"
+                  className="hover:bg-slate-50/70 transition-colors"
                 >
                   <td className="px-4 py-3 text-xs text-slate-600 whitespace-nowrap tabular-nums">
                     {new Date(inc.timestamp).toLocaleString()}
@@ -204,7 +232,7 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({
                         <button
                           type="button"
                           onClick={() => onAcknowledge(inc.id)}
-                          className="px-3 py-1 rounded-lg text-xs font-medium bg-[#0071e3] text-white hover:bg-[#0077ed] active:scale-95 transition-all shadow-sm"
+                          className="btn-primary py-1 px-3 shadow-xs"
                         >
                           Acknowledge
                         </button>
@@ -213,7 +241,7 @@ export const IncidentTable: React.FC<IncidentTableProps> = ({
                         <button
                           type="button"
                           onClick={() => onResolve(inc.id)}
-                          className="px-3 py-1 rounded-lg text-xs font-medium bg-emerald-600 text-white hover:bg-emerald-700 active:scale-95 transition-all shadow-sm"
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-600 text-white font-medium text-xs hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-xs"
                         >
                           Resolve
                         </button>

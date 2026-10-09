@@ -96,16 +96,16 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
   };
 
   return (
-    <div className="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-sm font-bold text-slate-900 tracking-tight flex items-center gap-2">
-          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" className="text-amber-500">
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-2 pb-2 border-b border-slate-100">
+        <h2 className="text-xs font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24" className="text-amber-500">
             <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
           </svg>
           Operational SOP Dispatch
         </h2>
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 uppercase">
-          Simulated Actions
+        <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-[#0071e3] border border-blue-200/80">
+          Standard Protocol
         </span>
       </div>
       <p className="text-xs text-slate-500 mb-3">
@@ -113,14 +113,15 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
       </p>
 
       {/* Dynamically Computed Target Zone Badge */}
-      <div className="mb-3 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+      <div className="mb-3 px-3 py-2 rounded-xl bg-slate-50/80 border border-slate-200/70 text-xs">
         <span className="text-slate-400 font-medium">Computed Highest-Load Target:</span>
-        <div className="font-bold text-slate-800 mt-0.5">
-          {targetName} ({targetCid} · {highestLoadZone.ratioStr})
+        <div className="font-bold text-slate-800 mt-0.5 flex items-center justify-between">
+          <span>{targetName}</span>
+          <span className="text-[11px] font-mono text-amber-600 font-semibold">{targetCid} · {highestLoadZone.ratioStr}</span>
         </div>
       </div>
 
-      <div className="space-y-2.5">
+      <div className="space-y-2">
         {/* Action 1: Dispatch Patrol */}
         <button
           type="button"
@@ -128,18 +129,22 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
             postDispatchAudit('dispatch_patrol', `Priority response to ${targetName}`);
             onDispatchAction(`Dispatched Safety Patrol to ${targetName} (${targetCid})`);
           }}
-          className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition flex items-center justify-between group"
+          className="w-full text-left p-2.5 rounded-xl bg-white/90 border border-slate-200/80 hover:border-[#0071e3]/60 hover:bg-blue-50/20 active:scale-[0.98] transition-all flex items-center justify-between group shadow-xs"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-sm">
-              🛡️
+            <div className="w-8 h-8 rounded-xl bg-[#0071e3]/10 text-[#0071e3] flex items-center justify-center shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-blue-700">Dispatch Safety Patrol</div>
+              <div className="text-xs font-semibold text-slate-800 group-hover:text-[#0071e3] transition-colors">
+                Dispatch Safety Patrol
+              </div>
               <div className="text-[11px] text-slate-500">Deploy Unit to {targetCid}</div>
             </div>
           </div>
-          <span className="text-[11px] text-blue-600 font-bold">Simulated →</span>
+          <span className="text-xs text-slate-300 group-hover:text-[#0071e3] group-hover:translate-x-0.5 transition-all">→</span>
         </button>
 
         {/* Action 2: Initiate Crowd Rerouting */}
@@ -149,39 +154,52 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
             postDispatchAudit('crowd_reroute', `Flow rerouting advisory for ${targetName}`);
             onDispatchAction(`Initiated Crowd Rerouting advisory to relieve load at ${targetName}`);
           }}
-          className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-amber-400 hover:bg-amber-50/30 transition flex items-center justify-between group"
+          className="w-full text-left p-2.5 rounded-xl bg-white/90 border border-slate-200/80 hover:border-amber-400/60 hover:bg-amber-50/20 active:scale-[0.98] transition-all flex items-center justify-between group shadow-xs"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center font-bold text-sm">
-              🔀
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="18" cy="18" r="3" />
+                <circle cx="6" cy="6" r="3" />
+                <path d="M13 6h3a2 2 0 0 1 2 2v7" />
+                <path d="M6 9v12" />
+              </svg>
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-amber-700">Initiate Crowd Rerouting</div>
+              <div className="text-xs font-semibold text-slate-800 group-hover:text-amber-700 transition-colors">
+                Initiate Crowd Rerouting
+              </div>
               <div className="text-[11px] text-slate-500">Advisory to relieve congestion</div>
             </div>
           </div>
-          <span className="text-[11px] text-amber-600 font-bold">Simulated →</span>
+          <span className="text-xs text-slate-300 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all">→</span>
         </button>
 
-        {/* Action 3: Export SitRep JSON (Strictly JSON, no PDF claim) */}
+        {/* Action 3: Export SitRep JSON */}
         <button
           type="button"
           onClick={() => {
             postDispatchAudit('sitrep_export', 'Situation report snapshot exported');
             handleExportSitrep();
           }}
-          className="w-full text-left p-3 rounded-xl border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/30 transition flex items-center justify-between group"
+          className="w-full text-left p-2.5 rounded-xl bg-white/90 border border-slate-200/80 hover:border-emerald-400/60 hover:bg-emerald-50/20 active:scale-[0.98] transition-all flex items-center justify-between group shadow-xs"
         >
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold text-sm">
-              📄
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
             </div>
             <div>
-              <div className="text-xs font-bold text-slate-800 group-hover:text-emerald-700">Export SitRep Snapshot</div>
+              <div className="text-xs font-semibold text-slate-800 group-hover:text-emerald-700 transition-colors">
+                Export SitRep Snapshot
+              </div>
               <div className="text-[11px] text-slate-500">Download telemetry & incident JSON</div>
             </div>
           </div>
-          <span className="text-[11px] text-emerald-600 font-bold">JSON ↓</span>
+          <span className="text-xs text-slate-300 group-hover:text-emerald-600 group-hover:translate-y-0.5 transition-all">↓</span>
         </button>
       </div>
     </div>
