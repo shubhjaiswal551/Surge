@@ -412,10 +412,12 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           zone_name: alert.zoneName,
           event_type: alert.type,
           severity: alert.numericSeverity || (alert.severity === 'critical' ? 5 : alert.severity === 'high' ? 4 : 3),
-          metrics: alert.metrics || {
-            density: 3.8,
-            headcount: 75,
-            velocity_variance: 2.5,
+          metrics: {
+            density: alert.metrics?.density ?? 2.8,
+            headcount: alert.metrics?.headcount ?? 70,
+            velocity_variance: alert.metrics?.velocity_variance ?? 1.2,
+            avg_speed: alert.metrics?.avg_speed ?? 1.1,
+            flow_vector: alert.metrics?.flow_vector ?? [0, 0],
           },
         }),
       });
@@ -1003,7 +1005,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                   <div className="font-semibold text-white flex items-center gap-2">
                     <span>Tactical AI Incident Debrief</span>
                     <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
-                      Gemini 1.5 Flash Free Tier
+                      {aiDebrief?.has_api_key ? 'Gemini 1.5 Flash Live' : 'Forensic Rule Engine (Local)'}
                     </span>
                   </div>
                   <div className="text-[10px] text-slate-400">

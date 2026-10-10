@@ -129,11 +129,32 @@ def _generate_fallback_debrief(
     headcount: int,
     velocity_variance: float,
 ) -> Dict[str, Any]:
-    threat_level = "CRITICAL" if severity >= 4 or density >= 4.0 else "HIGH" if severity >= 3 else "MODERATE"
-    stampede_risk = min(96, int(max(20, (density * 18.5) + (velocity_variance * 6))))
+    event_lower = event_type.lower()
+    is_surge = any(k in event_lower for k in ["surge", "dispersal", "panic", "rapid", "stampede"])
+    is_bottleneck = any(k in event_lower for k in ["bottleneck", "chokepoint", "compress", "obstruction"])
+    is_density = any(k in event_lower for k in ["density", "threshold", "headcount", "capacity"])
 
-    if "surge" in event_type.lower() or "dispersal" in event_type.lower():
-        summary = f"Sudden directional surge detected at {zone_name}. Accelerated velocity dispersion indicates localized crowd panic or evasive movement."
+    # Scientifically weighted Stampede Risk Calculation
+    if is_surge:
+        # Kinetic dispersion and high velocity variance drive stampede risk
+        base_risk = 35 + min(35, int(velocity_variance * 7.5)) + min(20, int(density * 4.0))
+        threat_level = "CRITICAL" if base_risk >= 75 else "HIGH" if base_risk >= 50 else "MODERATE"
+    elif is_bottleneck:
+        # Slow/stationary movement: low stampede risk, moderate compression risk
+        base_risk = 15 + min(25, int(density * 5.0)) + min(15, int(velocity_variance * 3.0))
+        threat_level = "HIGH" if density >= 4.5 else "MODERATE" if density >= 2.5 else "LOW"
+    elif is_density:
+        # High crowd volume without sudden panic velocity
+        base_risk = 12 + min(28, int(density * 5.5)) + min(15, int(velocity_variance * 3.5))
+        threat_level = "CRITICAL" if density >= 5.0 else "HIGH" if density >= 3.8 else "MODERATE"
+    else:
+        base_risk = 10 + min(25, int(density * 5.0)) + min(15, int(velocity_variance * 3.0))
+        threat_level = "MODERATE" if severity >= 3 else "LOW"
+
+    stampede_risk = max(10, min(88, base_risk))
+
+    if is_surge:
+        summary = f"Sudden directional surge detected at {zone_name}. Elevated kinetic dispersion indicates localized crowd displacement or evasive movement."
         root_cause = "Rapid kinetic divergence; pedestrians scattering from focal chokepoint."
         actions = [
             "Dispatch rapid-response marshals to secure perimeter exits.",
@@ -141,9 +162,9 @@ def _generate_fallback_debrief(
             "Broadcast standard calm-down guidance via Public Address."
         ]
         notes = f"Surge response: Ground security mobilized to {zone_name}. Ingress throttled and perimeter cleared. Density stabilized at safe threshold."
-    elif "bottleneck" in event_type.lower() or density >= 3.5:
-        summary = f"High-density compression accumulating at {zone_name}. Inflow exceeds egress throughput, causing stationary compression."
-        root_cause = "Physical chokepoint obstruction combined with sustained directional foot traffic."
+    elif is_bottleneck:
+        summary = f"Bottleneck chokepoint accumulating at {zone_name}. Inflow exceeds egress throughput, causing localized queue formation."
+        root_cause = "Physical chokepoint narrowing combined with steady directional foot traffic."
         actions = [
             "Open auxiliary bypass turnstiles to relieve directional pressure.",
             "Position stewards at entry gates to stagger incoming pedestrian waves.",
@@ -151,14 +172,14 @@ def _generate_fallback_debrief(
         ]
         notes = f"Bottleneck triage: Auxiliary bypass gates activated for {zone_name}. Entry metering enacted. Flow normalized."
     else:
-        summary = f"Elevated crowd anomaly registered in {zone_name} exceeding standard flow tolerances."
-        root_cause = "Localized velocity turbulence and spatial density accumulation."
+        summary = f"Elevated crowd concentration registered in {zone_name} ({density:.1f} P/m² across ~{headcount} persons)."
+        root_cause = "Sustained pedestrian accumulation during peak crosswalk transit intervals."
         actions = [
-            "Conduct visual sweep via auxiliary cameras to verify obstruction.",
-            "Place floor marshals on standby at adjacent corridors.",
-            "Log event in security log and continue active tracking."
+            "Verify steady pedestrian egress at exit stairwells and crosswalk transitions.",
+            "Keep auxiliary corridor access on standby if density approaches critical thresholds.",
+            "Maintain automated CCTV spatial telemetry monitoring."
         ]
-        notes = f"Standard anomaly verification: Monitored {zone_name} continuously. Flow resolved naturally without escalation."
+        notes = f"Density monitoring: Active tracking maintained for {zone_name}. Ingress rate compliant with safety thresholds."
 
     return {
         "summary": summary,
