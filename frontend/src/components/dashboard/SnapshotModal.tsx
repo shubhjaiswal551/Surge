@@ -995,20 +995,20 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           </div>
 
           {/* Tactical AI Incident Debrief (Google Gemini Free Tier) */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/70 to-slate-950 border border-indigo-500/30 text-xs text-slate-200 space-y-2.5 shadow-lg shadow-indigo-950/20">
-            <div className="flex items-center justify-between pb-2 border-b border-indigo-500/20">
+          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/70 via-white to-blue-50/50 border border-indigo-200/80 text-xs text-slate-700 space-y-2.5 shadow-sm">
+            <div className="flex items-center justify-between pb-2 border-b border-indigo-100">
               <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30">
+                <div className="w-6 h-6 rounded-lg bg-indigo-100/80 flex items-center justify-center text-indigo-600 border border-indigo-200">
                   <Sparkles size={13} className="animate-pulse" />
                 </div>
                 <div>
-                  <div className="font-semibold text-white flex items-center gap-2">
+                  <div className="font-semibold text-slate-900 flex items-center gap-2">
                     <span>Tactical AI Incident Debrief</span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
-                      {aiDebrief?.has_api_key ? 'Gemini 1.5 Flash Live' : 'Forensic Rule Engine (Local)'}
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 font-mono border border-indigo-200 font-medium">
+                      {aiDebrief?.has_api_key ? 'Gemini 3.8 Flash Live' : 'Forensic Rule Engine (Local)'}
                     </span>
                   </div>
-                  <div className="text-[10px] text-slate-400">
+                  <div className="text-[10px] text-slate-500">
                     Multimodal situation triage & automated action protocol
                   </div>
                 </div>
@@ -1017,7 +1017,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 type="button"
                 onClick={fetchAiDebrief}
                 disabled={isDebriefLoading}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-medium transition disabled:opacity-50"
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-medium transition disabled:opacity-50"
               >
                 <RotateCw size={11} className={isDebriefLoading ? 'animate-spin' : ''} />
                 <span>{isDebriefLoading ? 'Analyzing...' : 'Re-analyze'}</span>
@@ -1026,18 +1026,18 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
 
             {isDebriefLoading && (
               <div className="py-3 text-center space-y-1.5">
-                <div className="inline-flex items-center gap-2 text-indigo-400 text-xs font-mono">
+                <div className="inline-flex items-center gap-2 text-indigo-600 text-xs font-mono font-medium">
                   <RotateCw size={13} className="animate-spin" />
                   <span>Synthesizing crowd vector kinetics & hazard risk...</span>
                 </div>
-                <div className="w-48 h-1 bg-slate-800 rounded-full mx-auto overflow-hidden">
-                  <div className="w-full h-full bg-indigo-500 animate-[pulse_1s_infinite]" />
+                <div className="w-48 h-1 bg-slate-200 rounded-full mx-auto overflow-hidden">
+                  <div className="w-full h-full bg-indigo-600 animate-[pulse_1s_infinite]" />
                 </div>
               </div>
             )}
 
             {debriefError && (
-              <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[11px] flex items-center gap-2">
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-[11px] flex items-center gap-2">
                 <AlertTriangle size={13} className="shrink-0" />
                 <span>{debriefError}</span>
               </div>
@@ -1046,30 +1046,30 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
             {aiDebrief && !isDebriefLoading && (
               <div className="space-y-2.5">
                 {/* Situation Summary */}
-                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/60 leading-relaxed text-slate-200 text-xs">
-                  <span className="font-semibold text-indigo-300">Operational Assessment: </span>
+                <div className="p-2.5 rounded-xl bg-white border border-indigo-100/90 leading-relaxed text-slate-700 text-xs shadow-sm">
+                  <span className="font-semibold text-indigo-700">Operational Assessment: </span>
                   {aiDebrief.summary}
                 </div>
 
                 {/* Threat & Stampede Risk Metrics */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
                     <div className="text-[9px] text-slate-400 font-mono uppercase">Threat Level</div>
                     <div className={`text-xs font-bold mt-0.5 ${
-                      aiDebrief.threat_level === 'CRITICAL' ? 'text-rose-400' :
-                      aiDebrief.threat_level === 'HIGH' ? 'text-amber-400' : 'text-blue-400'
+                      aiDebrief.threat_level === 'CRITICAL' ? 'text-rose-600' :
+                      aiDebrief.threat_level === 'HIGH' ? 'text-amber-600' : 'text-blue-600'
                     }`}>
                       {aiDebrief.threat_level}
                     </div>
                   </div>
 
-                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
                     <div className="text-[9px] text-slate-400 font-mono uppercase">Stampede Risk</div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      <span className="text-xs font-bold text-amber-300 font-mono">
+                      <span className="text-xs font-bold text-amber-600 font-mono">
                         {aiDebrief.stampede_risk_percent}%
                       </span>
-                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
                         <div
                           className="h-full bg-gradient-to-r from-amber-500 to-rose-500 rounded-full"
                           style={{ width: `${aiDebrief.stampede_risk_percent}%` }}
@@ -1078,9 +1078,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                  <div className="p-2 rounded-xl bg-white border border-slate-200/80">
                     <div className="text-[9px] text-slate-400 font-mono uppercase">Root Cause</div>
-                    <div className="text-[11px] font-medium text-slate-300 truncate mt-0.5" title={aiDebrief.root_cause}>
+                    <div className="text-[11px] font-medium text-slate-700 truncate mt-0.5" title={aiDebrief.root_cause}>
                       {aiDebrief.root_cause}
                     </div>
                   </div>
@@ -1089,17 +1089,17 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 {/* Recommended Actions Protocol */}
                 {aiDebrief.recommended_actions && aiDebrief.recommended_actions.length > 0 && (
                   <div className="space-y-1.5">
-                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldAlert size={12} className="text-indigo-400" />
+                    <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldAlert size={12} className="text-indigo-600" />
                       <span>Recommended Action Protocol</span>
                     </div>
                     <div className="grid grid-cols-1 gap-1.5">
                       {aiDebrief.recommended_actions.map((act, idx) => (
                         <div
                           key={idx}
-                          className="flex items-start gap-2 p-2 rounded-xl bg-indigo-950/20 border border-indigo-500/20 text-slate-300 text-[11px]"
+                          className="flex items-start gap-2 p-2 rounded-xl bg-white border border-indigo-100/90 text-slate-700 text-[11px] shadow-sm"
                         >
-                          <span className="w-4 h-4 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center font-mono text-[9px] shrink-0 mt-0.5">
+                          <span className="w-4 h-4 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center font-mono text-[9px] shrink-0 mt-0.5">
                             {idx + 1}
                           </span>
                           <span>{act}</span>
@@ -1110,7 +1110,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 )}
 
                 {/* Quick Action Footer */}
-                <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-800/80">
+                <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500 border-t border-slate-200/70">
                   <span className="font-mono">Engine: {aiDebrief.source}</span>
                   {aiDebrief.operator_notes_draft && (
                     <button
@@ -1119,7 +1119,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                         setResolutionNotes(aiDebrief.operator_notes_draft);
                         setShowResolveForm(true);
                       }}
-                      className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-2 transition"
+                      className="inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 font-medium underline underline-offset-2 transition"
                     >
                       <FileText size={11} />
                       <span>Auto-fill Resolution Notes</span>
