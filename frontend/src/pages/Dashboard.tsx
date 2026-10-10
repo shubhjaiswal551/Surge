@@ -7,6 +7,7 @@ import RiskScoreGauge from '../components/dashboard/RiskScoreGauge';
 import OperationalDispatchHub from '../components/dashboard/OperationalDispatchHub';
 import AnomalyDistributionCard from '../components/dashboard/AnomalyDistributionCard';
 import AnimatedCounter from '../components/dashboard/AnimatedCounter';
+import RubberSegment from '../components/ui/RubberSegment';
 import { useCrowdContext } from '../context/CrowdContext';
 import {
   deriveZoneCapacity,
@@ -342,22 +343,20 @@ const Dashboard: React.FC = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <div className="mac-segmented flex items-center">
-                        {(['5m', '15m', '1h'] as const).map((w) => (
-                          <button
-                            key={w}
-                            type="button"
-                            onClick={() => setTimeWindow(w)}
-                            className={`px-3 py-1 text-xs transition-all ${
-                              timeWindow === w
-                                ? 'mac-pill-active'
-                                : 'text-slate-600 hover:text-slate-900 font-medium'
-                            }`}
-                          >
-                            {w}
-                          </button>
-                        ))}
-                      </div>
+                      <RubberSegment
+                        items={['5m', '15m', '1h']}
+                        value={timeWindow}
+                        onChange={(val) => setTimeWindow(val as '5m' | '15m' | '1h')}
+                        size="sm"
+                        trackColor="#e2e8f0"
+                        thumbColor="#ffffff"
+                        textColor="#64748b"
+                        activeTextColor="#0f172a"
+                        radius={10}
+                        inset={2.5}
+                        speed={1}
+                        aria-label="Time window selection"
+                      />
                       <div className="hidden sm:flex items-center gap-3 text-xs font-sans text-slate-600">
                         <span className="inline-flex items-center gap-1.5">
                           <span className="w-2 h-2 rounded-full bg-rose-500" />

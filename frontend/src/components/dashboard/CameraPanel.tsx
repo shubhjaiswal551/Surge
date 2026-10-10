@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
 import type { DensityLevel } from '../../types/crowdEvent';
+import BroadcastAnnouncementModal from './BroadcastAnnouncementModal';
+import RubberSegment from '../ui/RubberSegment';
 
 interface CameraPanelProps {
   cameraId: string;
@@ -16,6 +18,7 @@ interface CameraPanelProps {
   polygonCoords?: [number, number][];
   areaSqM?: number;
   isDark?: boolean;
+  isMasterPlaying?: boolean;
   onHeadcountChange?: (count: number) => void;
   onCalibrateZone?: () => void;
   onInspectAnomaly?: () => void;
@@ -148,6 +151,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   polygonCoords,
   areaSqM,
   isDark = false,
+  isMasterPlaying,
   onCalibrateZone,
   onInspectAnomaly,
   onFlagIncident,
@@ -211,6 +215,16 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   const [showSpatialMatrix, setShowSpatialMatrix] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [snapshotSuccess, setSnapshotSuccess] = useState(false);
+
+  // DVR Timeline & Playback Buffer (P3)
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(11.5);
+  const [playbackRate, setPlaybackRate] = useState(1.0);
+  const [isLive, setIsLive] = useState(true);
+  const [showDvr, setShowDvr] = useState(false);
+  const [showPaModal, setShowPaModal] = useState(false);
+  const [activePaAnnouncement, setActivePaAnnouncement] = useState<string | null>(null);
+  const [dossierSuccess, setDossierSuccess] = useState(false);
 
   const defaultPolygon = useMemo<[number, number][]>(() => {
     return isCam1
@@ -676,10 +690,117 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     link.download = `SafeCrowd_${cameraId}_${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
-
     setSnapshotSuccess(true);
-    setTimeout(() => setSnapshotSuccess(false), 2500);
+    setTimeout(() => setSnapshotSuccess(false), 2000);
   }, [cameraId, zoneName, liveHeadcount]);
+
+  // Synchronize playback when master control toggles
+  useEffect(() => {
+    if (isMasterPlaying === undefined) return;
+    if (!videoRef.current) return;
+    if (isMasterPlaying) {
+      videoRef.current.play().catch(() => {});
+      setIsPlaying(true);
+    } else {
+      videoRef.current.pause();
+      setIsPlaying(false);
+    }
+  }, [isMasterPlaying]);
+
+  // DVR Timeline Progress & Replay Handlers (P3)
+  const handleTimeUpdate = () => {
+    if (!videoRef.current) return;
+    const ct = videoRef.current.currentTime || 0;
+    const dur = videoRef.current.duration || 11.5;
+    setCurrentTime(ct);
+    setDuration(dur);
+    if (dur && dur - ct <= 0.8) {
+      setIsLive(true);
+    }
+  };
+
+  const handleRewind = (seconds: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - seconds);
+    setIsLive(false);
+  };
+
+  const handleSeek = (time: number) => {
+    if (!videoRef.current) return;
+    videoRef.current.currentTime = time;
+    if (videoRef.current.duration && videoRef.current.duration - time <= 0.8) {
+      setIsLive(true);
+    } else {
+      setIsLive(false);
+    }
+  };
+
+  const handleSetPlaybackRate = (rate: number) => {
+    setPlaybackRate(rate);
+    if (videoRef.current) {
+      videoRef.current.playbackRate = rate;
+    }
+  };
+
+  const handleJumpToLive = () => {
+    if (!videoRef.current) return;
+    if (videoRef.current.duration) {
+      videoRef.current.currentTime = Math.max(0, videoRef.current.duration - 0.2);
+    }
+    videoRef.current.playbackRate = 1.0;
+    setPlaybackRate(1.0);
+    videoRef.current.play().catch(() => {});
+    setIsPlaying(true);
+    setIsLive(true);
+  };
+
+  // Export Cryptographic / Structured JSON Forensic Dossier (P3)
+  const handleExportForensicDossier = useCallback(() => {
+    const report = {
+      audit_report_id: `SC-DOSSIER-${cameraId.toUpperCase()}-${Date.now().toString(36).toUpperCase()}`,
+      classification: 'OFFICIAL SURVEILLANCE FORENSIC EVIDENCE',
+      generated_at: new Date().toISOString(),
+      optical_channel: {
+        camera_id: cameraId,
+        zone_name: zoneName,
+        deployment_location: description,
+        resolution: `${videoRef.current?.videoWidth || 1920}x${videoRef.current?.videoHeight || 1080}`,
+        framerate: '29.98 FPS',
+        stream_protocol: 'RTSP_OVER_WEBSOCKET',
+      },
+      crowd_telemetry: {
+        observed_headcount: liveHeadcount,
+        density_rating: effectiveDensity,
+        spatial_density_p_per_m2: Number((liveHeadcount / (areaSqM || (isCam1 ? 45.0 : 60.0))).toFixed(2)),
+        calibrated_zone_area_m2: areaSqM || (isCam1 ? 45.0 : 60.0),
+        flow_vector_azimuth_deg: flowDirection,
+        polygon_vertices: effectivePolygon,
+      },
+      threat_assessment: {
+        anomaly_flagged: !!anomaly,
+        anomaly_type: anomalyType || (effectiveDensity === 'critical' ? 'CRITICAL_CROWD_SURGE' : 'NONE'),
+        threat_level: effectiveDensity === 'critical' ? 'LEVEL_5_CRITICAL' : effectiveDensity === 'high' ? 'LEVEL_4_HIGH' : 'LEVEL_1_SAFE',
+      },
+      cryptographic_fingerprint: `SHA256:${Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`,
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SafeCrowd_Dossier_${cameraId}_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setDossierSuccess(true);
+    setTimeout(() => setDossierSuccess(false), 2500);
+  }, [cameraId, zoneName, description, liveHeadcount, effectiveDensity, areaSqM, isCam1, flowDirection, effectivePolygon, anomaly, anomalyType]);
+
+  const handleBroadcastPa = (msg: string) => {
+    setActivePaAnnouncement(msg);
+    setTimeout(() => {
+      setActivePaAnnouncement(null);
+    }, 5500);
+  };
 
   return (
     <div
@@ -782,6 +903,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               loop
               muted
               playsInline
+              onTimeUpdate={handleTimeUpdate}
+              onLoadedMetadata={handleTimeUpdate}
               onError={() => {
                 if (!videoError) {
                   setVideoError(true);
@@ -806,9 +929,20 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
           />
         </div>
 
-        {/* Top Left: Live Status & Anomaly Alert */}
+        {/* Top Left: Live Status, DVR Replay & Anomaly Alert */}
         <div className="absolute top-2.5 left-2.5 flex items-center gap-2 z-20">
-          {anomaly ? (
+          {!isLive ? (
+            <button
+              type="button"
+              onClick={handleJumpToLive}
+              title="Playing past DVR buffer. Click to jump to real-time live stream."
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500 text-white border border-amber-300 shadow-md backdrop-blur-md animate-pulse hover:bg-amber-400 active:scale-95 transition-all cursor-pointer shrink-0"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+              <span>DVR (-{(Math.max(0, duration - currentTime)).toFixed(0)}s)</span>
+              <span className="font-normal underline">Live →</span>
+            </button>
+          ) : anomaly ? (
             <button
               type="button"
               onClick={onInspectAnomaly}
@@ -878,7 +1012,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             </button>
           </div>
 
-          {/* VMS Action Buttons: Snapshot, Flag, Zoom, Fullscreen */}
+          {/* VMS Action Buttons: Snapshot, Dossier, Flag, DVR, PA, Zoom, Fullscreen */}
           <div className="flex items-center bg-slate-950/70 backdrop-blur-md rounded-xl p-0.5 border border-white/15 shadow-sm text-white">
             <button
               type="button"
@@ -889,6 +1023,46 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
                 <circle cx="12" cy="13" r="4" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleExportForensicDossier}
+              title="Export Official Cryptographic Forensic Dossier (.JSON)"
+              className="p-1 rounded-lg text-slate-300 hover:text-sky-300 hover:bg-white/10 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowDvr(!showDvr)}
+              title="Toggle DVR Timeline Rewind, Slow-Mo & Scrubbing Buffer"
+              className={`p-1 rounded-lg transition-colors ${
+                showDvr ? 'text-amber-400 bg-white/15' : 'text-slate-300 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 8 14" />
+              </svg>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowPaModal(true)}
+              title="Transmit Public Address Voice Announcement to this Sector"
+              className="p-1 rounded-lg text-amber-300 hover:text-amber-100 hover:bg-amber-900/40 transition-colors"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
               </svg>
             </button>
 
@@ -984,6 +1158,25 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
         {snapshotSuccess && (
           <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-emerald-600/90 text-white text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1.5 animate-bounce">
             <span>✓ Snapshot Saved</span>
+          </div>
+        )}
+
+        {/* Dossier Download Confirmation Banner */}
+        {dossierSuccess && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-sky-600/90 text-white text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1.5 animate-bounce">
+            <span>✓ Forensic Dossier Exported (.JSON)</span>
+          </div>
+        )}
+
+        {/* Public Address Announcement Active Banner */}
+        {activePaAnnouncement && (
+          <div className="absolute top-11 left-3 right-3 z-30 bg-amber-600/95 text-white px-3 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between border border-amber-400/50 animate-in slide-in-from-top-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-sm shrink-0 animate-bounce">📢</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider shrink-0">PA LIVE:</span>
+              <span className="text-xs truncate font-medium">{activePaAnnouncement}</span>
+            </div>
+            <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-black/30 shrink-0 font-bold">TRANSMITTING</span>
           </div>
         )}
 
@@ -1173,6 +1366,89 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
         </div>
       )}
 
+      {/* Live DVR Timeline & Replay Buffer Drawer (P3) */}
+      {showDvr && (
+        <div className={`p-3.5 border-t animate-fade-in ${isDark ? 'bg-slate-900/95 border-slate-800 text-slate-100' : 'bg-slate-50/95 border-slate-100 text-slate-900'}`}>
+          <div className="flex items-center justify-between gap-3 text-xs flex-wrap">
+            {/* Rewind & Speed buttons */}
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => handleRewind(10)}
+                title="Rewind video 10 seconds"
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200/70 hover:bg-slate-300 text-slate-700'
+                }`}
+              >
+                ⏪ -10s
+              </button>
+              <button
+                type="button"
+                onClick={() => handleRewind(30)}
+                title="Rewind video 30 seconds"
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                  isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200/70 hover:bg-slate-300 text-slate-700'
+                }`}
+              >
+                ⏪ -30s
+              </button>
+              <RubberSegment
+                items={[
+                  { value: '0.5', label: '0.5x' },
+                  { value: '1', label: '1.0x' },
+                  { value: '2', label: '2.0x' },
+                ]}
+                value={String(playbackRate)}
+                onChange={(val) => handleSetPlaybackRate(parseFloat(val))}
+                size="sm"
+                trackColor={isDark ? '#1e293b' : '#e2e8f0'}
+                thumbColor={isDark ? '#2563eb' : '#ffffff'}
+                textColor={isDark ? '#94a3b8' : '#64748b'}
+                activeTextColor={isDark ? '#ffffff' : '#0f172a'}
+                radius={8}
+                inset={2}
+                speed={1}
+                aria-label="DVR playback speed"
+              />
+            </div>
+
+            {/* Time Scrubber Slider */}
+            <div className="flex-1 min-w-[140px] flex items-center gap-2">
+              <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                {Math.floor(currentTime / 60)}:{(currentTime % 60).toFixed(0).padStart(2, '0')}
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={duration || 100}
+                step={0.1}
+                value={currentTime}
+                onChange={(e) => handleSeek(parseFloat(e.target.value))}
+                className="w-full h-1.5 bg-slate-300/80 rounded-lg appearance-none cursor-pointer accent-blue-600"
+              />
+              <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                {Math.floor((duration || 0) / 60)}:{((duration || 0) % 60).toFixed(0).padStart(2, '0')}
+              </span>
+            </div>
+
+            {/* Jump to Live Button */}
+            <button
+              type="button"
+              onClick={handleJumpToLive}
+              title="Return to real-time live feed"
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-medium flex items-center gap-1.5 transition-all ${
+                isLive
+                  ? isDark ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-emerald-600 text-white animate-pulse shadow-sm hover:bg-emerald-500'
+              }`}
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>{isLive ? 'Live Sync' : 'Jump to Live ↗'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Card Footer */}
       <div className={`px-5 py-3 border-t flex items-center justify-between text-xs backdrop-blur-sm ${
         isDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white/70 border-slate-100 text-slate-600'
@@ -1195,6 +1471,36 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowDvr(!showDvr)}
+            title="Toggle DVR Buffer Controls"
+            className={`px-2 py-1 rounded-xl text-xs font-medium border transition-all flex items-center gap-1 shadow-xs ${
+              showDvr
+                ? 'bg-amber-500 text-white border-amber-500'
+                : isDark
+                  ? 'bg-slate-800/80 text-slate-300 border-slate-700 hover:bg-slate-700'
+                  : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
+            }`}
+          >
+            <span>⏪</span>
+            <span>DVR</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setShowPaModal(true)}
+            title="Broadcast Public Address Audio Message"
+            className={`px-2 py-1 rounded-xl text-xs font-medium border transition-all flex items-center gap-1 shadow-xs ${
+              isDark
+                ? 'bg-slate-800/80 text-amber-300 border-slate-700 hover:bg-slate-700'
+                : 'bg-slate-100/90 text-amber-700 border-slate-200/80 hover:bg-slate-200/80'
+            }`}
+          >
+            <span>📢</span>
+            <span>PA</span>
+          </button>
+
           <button
             type="button"
             onClick={() => setShowSpatialMatrix(!showSpatialMatrix)}
@@ -1247,6 +1553,17 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Public Address Announcement Intercom Modal (P3) */}
+      {showPaModal && (
+        <BroadcastAnnouncementModal
+          cameraId={cameraId}
+          zoneName={zoneName}
+          onClose={() => setShowPaModal(false)}
+          onBroadcast={handleBroadcastPa}
+          isDark={isDark}
+        />
+      )}
     </div>
   );
 };

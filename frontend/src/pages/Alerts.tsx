@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import Sidebar from '../components/dashboard/Sidebar';
 import StatusBar from '../components/dashboard/StatusBar';
 import AlertFeed from '../components/dashboard/AlertFeed';
+import RubberSegment from '../components/ui/RubberSegment';
 import { useAuth } from '../context/AuthContext';
 import {
   startCrowdSimulator,
@@ -89,25 +90,26 @@ const Alerts: React.FC = () => {
               {/* Triage action controls */}
               <div className="flex items-center gap-3">
                 {/* macOS Segmented Severity filter buttons */}
-                <div className="mac-segmented flex items-center">
-                  {(['all', 'critical', 'high', 'warning', 'info'] as const).map((sev) => {
-                    const label = sev === 'all' ? 'All' : sev.charAt(0).toUpperCase() + sev.slice(1);
-                    return (
-                      <button
-                        key={sev}
-                        type="button"
-                        onClick={() => setSelectedSeverity(sev)}
-                        className={`px-2.5 py-1 text-xs transition-all ${
-                          selectedSeverity === sev
-                            ? 'mac-pill-active'
-                            : 'text-slate-600 hover:text-slate-900 font-medium'
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    );
-                  })}
-                </div>
+                <RubberSegment
+                  items={[
+                    { value: 'all', label: 'All' },
+                    { value: 'critical', label: 'Critical' },
+                    { value: 'high', label: 'High' },
+                    { value: 'warning', label: 'Warning' },
+                    { value: 'info', label: 'Info' },
+                  ]}
+                  value={selectedSeverity}
+                  onChange={(val) => setSelectedSeverity(val)}
+                  size="sm"
+                  trackColor="#e2e8f0"
+                  thumbColor="#ffffff"
+                  textColor="#64748b"
+                  activeTextColor="#0f172a"
+                  radius={10}
+                  inset={2.5}
+                  speed={1}
+                  aria-label="Incident severity filter"
+                />
 
                 {unacknowledged > 0 && (
                   <button

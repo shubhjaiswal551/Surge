@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import GoogleButton from '../components/auth/GoogleButton';
 import LoginForm from '../components/auth/LoginForm';
 import SignupForm from '../components/auth/SignupForm';
+import RubberSegment from '../components/ui/RubberSegment';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 
@@ -125,30 +126,23 @@ const Landing: React.FC = () => {
                     Sign in to initialize monitoring session
                   </p>
                 </div>
-                <div className="mac-segmented flex items-center">
-                  <button
-                    type="button"
-                    onClick={() => setTab('login')}
-                    className={`px-3 py-1 text-xs transition-all ${
-                      tab === 'login'
-                        ? 'mac-pill-active'
-                        : 'text-slate-600 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    Sign In
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setTab('signup')}
-                    className={`px-3 py-1 text-xs transition-all ${
-                      tab === 'signup'
-                        ? 'mac-pill-active'
-                        : 'text-slate-600 hover:text-slate-900 font-medium'
-                    }`}
-                  >
-                    Register
-                  </button>
-                </div>
+                <RubberSegment
+                  items={[
+                    { value: 'login', label: 'Sign In' },
+                    { value: 'signup', label: 'Register' },
+                  ]}
+                  value={tab}
+                  onChange={(val) => setTab(val as AuthTab)}
+                  size="sm"
+                  trackColor="#e2e8f0"
+                  thumbColor="#ffffff"
+                  textColor="#64748b"
+                  activeTextColor="#0f172a"
+                  radius={10}
+                  inset={2.5}
+                  speed={1}
+                  aria-label="Operator access mode"
+                />
               </div>
 
               <div className="space-y-4">

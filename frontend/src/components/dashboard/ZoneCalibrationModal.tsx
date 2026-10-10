@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import RubberSegment from '../ui/RubberSegment';
 import { API_BASE_URL } from '../../config/api';
 
 interface Point {
@@ -248,16 +249,33 @@ const ZoneCalibrationModal: React.FC<ZoneCalibrationModalProps> = ({
             </div>
 
             <div className="space-y-1.5">
-              <label className="text-xs font-semibold text-slate-500">Sensitivity Preset</label>
-              <select
-                value={preset}
-                onChange={(e) => setPreset(e.target.value as any)}
-                className="input-field text-xs w-full"
-              >
-                <option value="standard">Standard Venue (3.0 p/m²)</option>
-                <option value="chokepoint">Narrow Gate / Escalator (2.2 p/m²)</option>
-                <option value="concourse">Wide Concourse (3.8 p/m²)</option>
-              </select>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-500">Sensitivity Preset</label>
+                <span className="text-[10px] text-[#0071e3] font-medium font-mono">
+                  {preset === 'standard' ? '3.0 p/m²' : preset === 'chokepoint' ? '2.2 p/m²' : '3.8 p/m²'}
+                </span>
+              </div>
+              <div className="pt-0.5">
+                <RubberSegment
+                  items={[
+                    { value: 'standard', label: 'Standard' },
+                    { value: 'chokepoint', label: 'Chokepoint' },
+                    { value: 'concourse', label: 'Concourse' },
+                  ]}
+                  value={preset}
+                  onChange={(val) => setPreset(val as any)}
+                  size="sm"
+                  equalSlots
+                  trackColor="#e2e8f0"
+                  thumbColor="#ffffff"
+                  textColor="#64748b"
+                  activeTextColor="#0f172a"
+                  radius={10}
+                  inset={2.5}
+                  speed={1}
+                  aria-label="Zone sensitivity preset"
+                />
+              </div>
             </div>
 
             <div className="col-span-full pt-3 flex items-center justify-between border-t border-slate-100">

@@ -6,6 +6,8 @@ import CameraPanel from '../components/dashboard/CameraPanel';
 import SnapshotModal from '../components/dashboard/SnapshotModal';
 import ZoneCalibrationModal from '../components/dashboard/ZoneCalibrationModal';
 import FlagIncidentModal from '../components/dashboard/FlagIncidentModal';
+import KeyboardShortcutsModal from '../components/dashboard/KeyboardShortcutsModal';
+import RubberSegment from '../components/ui/RubberSegment';
 import { useCrowdStream } from '../hooks/useCrowdStream';
 import { API_BASE_URL } from '../config/api';
 import { playChime, isSoundEnabled, setSoundEnabled } from '../lib/sound';
@@ -57,6 +59,10 @@ const CameraFeeds: React.FC = () => {
   const [heroId, setHeroId] = useState<string>(paramFocus || 'cam-001');
   const [isWallMode, setIsWallMode] = useState<boolean>(false);
   const [isSocDark, setIsSocDark] = useState<boolean>(false);
+
+  // Synchronized Master Playback Control (P3)
+  const [isMasterPlaying, setIsMasterPlaying] = useState<boolean>(true);
+  const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
 
   useEffect(() => {
     const target = searchParams.get('focus');
@@ -113,12 +119,8 @@ const CameraFeeds: React.FC = () => {
                   cameraId: bCam.id,
                   zoneName: bCam.name || bCam.location || 'Surveillance Zone',
                   description: bCam.location || 'Optical RTSP Endpoint',
-                  headcount:
-                    existing?.headcount ??
-                    (bCam.id === 'cam-003' ? 185 : bCam.id === 'cam-001' ? 22 : bCam.id === 'cam-004' ? 20 : 8),
-                  density:
-                    existing?.density ??
-                    (bCam.id === 'cam-003' ? 'high' : bCam.id === 'cam-001' ? 'moderate' : 'low'),
+                  headcount: existing?.headcount ?? 45,
+                  density: existing?.density ?? 'low',
                   flowDirection: existing?.flowDirection ?? 90,
                   lastUpdated: existing?.lastUpdated ?? new Date().toISOString(),
                   lastUpdatedAgo: existing?.lastUpdatedAgo ?? 0,
@@ -302,7 +304,6 @@ const CameraFeeds: React.FC = () => {
 
     if (hasCritical || hasHigh || hasUnackAnomaly) {
       const now = Date.now();
-      // Throttle audio chimes to at most once every 6.5s
       if (now - lastSoundTimeRef.current >= 6500) {
         lastSoundTimeRef.current = now;
         playChime(hasCritical ? 'critical' : 'high');
@@ -322,7 +323,6 @@ const CameraFeeds: React.FC = () => {
     const interval = window.setInterval(() => {
       setTourSecondsLeft((prev) => {
         if (prev <= 1) {
-          // Advance to next camera
           setCameras((currentCameras) => {
             if (currentCameras.length <= 1) return currentCameras;
             const currentActiveId = layout === 'focus' ? focusId : heroId;
@@ -342,6 +342,69 @@ const CameraFeeds: React.FC = () => {
     return () => clearInterval(interval);
   }, [isAutoTour, layout, focusId, heroId]);
 
+  // 7. Tactical VMS Keyboard Shortcuts Engine (P3)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === '1') {
+        setLayout('grid');
+        showToast('Layout: Matrix View (2×2)');
+      } else if (e.key === '2') {
+        setLayout('hero');
+        showToast('Layout: 1+Hero Grid');
+      } else if (e.key === '3') {
+        setLayout('dense');
+        showToast('Layout: Dense Wall (3×3)');
+      } else if (e.key === '4') {
+        setLayout('focus');
+        showToast('Layout: Focus Single');
+      } else if (e.code === 'Space') {
+        e.preventDefault();
+        setIsMasterPlaying((prev) => {
+          const next = !prev;
+          showToast(next ? 'Resumed all camera feeds' : 'Paused/Frozen all camera feeds');
+          return next;
+        });
+      } else if (e.key === 't' || e.key === 'T') {
+        setIsAutoTour((prev) => {
+          const next = !prev;
+          showToast(next ? 'Auto-Tour surveillance loop enabled' : 'Auto-Tour paused');
+          return next;
+        });
+      } else if (e.key === 'd' || e.key === 'D') {
+        setIsSocDark((prev) => {
+          const next = !prev;
+          showToast(next ? 'Dark Room Mode enabled' : 'Day Light Mode enabled');
+          return next;
+        });
+      } else if (e.key === 'm' || e.key === 'M') {
+        setSoundActive((prev) => {
+          const next = !prev;
+          setSoundEnabled(next);
+          showToast(next ? 'Surge audio alarms enabled' : 'Surge audio alarms muted');
+          return next;
+        });
+      } else if (e.key === 'f' || e.key === 'F') {
+        setIsWallMode((prev) => !prev);
+      } else if (e.key === '?') {
+        setShowShortcutsModal((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        setShowShortcutsModal(false);
+        setCalibratingCamera(null);
+        setSelectedAlertForModal(null);
+        setFlaggingCamera(null);
+        if (isWallMode) setIsWallMode(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showToast, isWallMode]);
+
   // Aggregate Metrics
   const totalHeadcount = useMemo(
     () => cameras.reduce((sum, c) => sum + (c.headcount || 0), 0),
@@ -359,7 +422,6 @@ const CameraFeeds: React.FC = () => {
   const filteredCameras = useMemo(() => {
     let list = [...cameras];
 
-    // Search query filter
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       list = list.filter(
@@ -370,7 +432,6 @@ const CameraFeeds: React.FC = () => {
       );
     }
 
-    // Status / Density Filter
     if (filterStatus === 'anomaly') {
       const anomalyIds = new Set(
         alerts.filter((a) => !a.acknowledged).map((a) => a.cameraId),
@@ -382,7 +443,6 @@ const CameraFeeds: React.FC = () => {
       list = list.filter((c) => c.density === 'low' || c.density === 'moderate');
     }
 
-    // Sorting
     if (sortBy === 'headcount_desc') {
       list.sort((a, b) => (b.headcount || 0) - (a.headcount || 0));
     } else if (sortBy === 'headcount_asc') {
@@ -436,6 +496,43 @@ const CameraFeeds: React.FC = () => {
     setSelectedAlertForModal(null);
   };
 
+  // Batch Export Entire Multi-Channel Surveillance Forensic Dossier (P3)
+  const handleBatchForensicExport = useCallback(() => {
+    const report = {
+      batch_audit_id: `SC-BATCH-AUDIT-${Date.now().toString(36).toUpperCase()}`,
+      classification: 'OFFICIAL SECTOR-WIDE SURVEILLANCE REPORT',
+      export_timestamp: new Date().toISOString(),
+      network_summary: {
+        active_feeds_count: activeCamerasCount,
+        total_cameras_registered: cameras.length,
+        total_observed_headcount: totalHeadcount,
+        unacknowledged_alerts_count: unacknowledged,
+      },
+      channels: cameras.map((c) => ({
+        camera_id: c.cameraId,
+        zone_name: c.zoneName,
+        deployment_location: c.description,
+        headcount: c.headcount,
+        density: c.density,
+        flow_azimuth: c.flowDirection,
+        calibrated_polygon: c.polygonCoords || [],
+        calibrated_area_m2: getCameraArea(c.cameraId),
+        spatial_density_p_m2: Number((c.headcount / getCameraArea(c.cameraId)).toFixed(2)),
+      })),
+      active_anomalies: alerts.filter((a) => !a.acknowledged),
+      system_signature: `SC-BATCH-${Date.now()}`,
+    };
+
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `SafeCrowd_Full_Surveillance_Report_${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Comprehensive multi-channel audit report exported (.JSON)');
+  }, [activeCamerasCount, cameras, totalHeadcount, unacknowledged, alerts, showToast]);
+
   // 1+5 Hero Grid: Primary camera and auxiliary cameras
   const heroCam = useMemo(() => {
     return filteredCameras.find((c) => c.cameraId === heroId) || filteredCameras[0];
@@ -447,14 +544,14 @@ const CameraFeeds: React.FC = () => {
   }, [filteredCameras, heroCam]);
 
   return (
-    <div className={`h-screen w-screen flex overflow-hidden transition-colors duration-300 ${isSocDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-[#f5f5f7] text-slate-900'}`}>
+    <div className={`h-screen w-screen flex overflow-hidden transition-colors duration-300 ${isSocDark ? 'bg-[#0B0F19] text-slate-100' : 'bg-bg-primary text-slate-900'}`}>
       {!isWallMode && <Sidebar alertCount={unacknowledged} />}
 
       <div className="flex-1 flex flex-col min-w-0">
         {!isWallMode && <StatusBar activeAlertCount={unacknowledged} />}
 
         <main className="flex-1 overflow-y-auto min-h-0">
-          <div className="px-6 md:px-8 py-6 space-y-6 max-w-[1800px] mx-auto">
+          <div className="px-6 py-5 space-y-4">
             {/* Operator Toast Notification */}
             {toastMessage && (
               <div className="fixed top-16 right-8 z-50 bg-slate-900/95 text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl border border-white/20 backdrop-blur-md flex items-center gap-2.5 animate-in fade-in slide-in-from-top-2">
@@ -464,32 +561,85 @@ const CameraFeeds: React.FC = () => {
             )}
 
             {/* Command Header */}
-            <div className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-3 border-b ${isSocDark ? 'border-slate-800' : 'border-slate-200/70'}`}>
-              <div>
-                <div className="flex items-center gap-3">
-                  <h1 className={`text-lg font-bold tracking-tight ${isSocDark ? 'text-white' : 'text-slate-900'}`}>
-                    Live Camera Feeds
+            <div className={`flex flex-col xl:flex-row xl:items-center justify-between gap-3 pb-3.5 border-b ${isSocDark ? 'border-slate-800' : 'border-slate-200/70'}`}>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <h1 className={`text-lg font-bold tracking-tight whitespace-nowrap ${isSocDark ? 'text-white' : 'text-slate-900'}`}>
+                    Optical Surveillance Matrix
                   </h1>
-                  <span className="chip-safe font-sans font-medium text-[11px]">
+                  <span className="chip-safe font-sans font-medium text-[11px] shrink-0">
                     {activeCamerasCount} / {cameras.length} Active Feeds
                   </span>
-                  <span className={`hidden md:inline-flex px-2 py-0.5 rounded-full border text-[11px] font-mono ${isSocDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200/80 text-slate-600'}`}>
+                  <span className={`hidden sm:inline-flex px-2 py-0.5 rounded-full border text-[11px] font-mono shrink-0 ${isSocDark ? 'bg-slate-800 border-slate-700 text-slate-300' : 'bg-slate-100 border-slate-200/80 text-slate-600'}`}>
                     Total Monitored: {totalHeadcount.toLocaleString()} People
                   </span>
                   {isWsConnected && (
-                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-medium flex items-center gap-1">
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[10px] font-medium flex items-center gap-1 shrink-0">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                       Live Stream Connected
                     </span>
                   )}
                 </div>
-                <p className={`text-xs mt-0.5 ${isSocDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                  Real-time video surveillance with AI crowd detection, heatmaps, and movement analysis.
+                <p className={`text-xs mt-1 ${isSocDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  High-throughput RTSP video matrix with hardware-accelerated YOLO perception, spatial heatmaps & kinetic flow vectors.
                 </p>
               </div>
 
-              {/* Top Action Cluster: Sound, SOC Dark Mode, Auto-Tour, Video Wall */}
-              <div className="flex items-center gap-2.5 flex-wrap">
+              {/* Top Action Cluster (4x2 Compact Tactical Grid) */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 shrink-0">
+                {/* Master Synchronized Play / Pause (P3) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !isMasterPlaying;
+                    setIsMasterPlaying(next);
+                    showToast(next ? 'Resumed all camera feeds' : 'Paused/Frozen all camera feeds');
+                  }}
+                  title={isMasterPlaying ? 'Pause / Freeze All Camera Feeds Simultaneously (Space)' : 'Resume Synchronized Playback across All Feeds (Space)'}
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                    !isMasterPlaying
+                      ? 'bg-amber-600 text-white border-amber-600 animate-pulse'
+                      : isSocDark
+                        ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
+                        : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
+                  }`}
+                >
+                  <span>{isMasterPlaying ? '⏸ Freeze All' : '▶ Resume'}</span>
+                </button>
+
+                {/* Batch Forensic Report Export (P3) */}
+                <button
+                  type="button"
+                  onClick={handleBatchForensicExport}
+                  title="Export Comprehensive Sector-Wide Forensic Audit Report (.JSON)"
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                    isSocDark
+                      ? 'bg-slate-800 text-sky-400 border-slate-700 hover:bg-slate-750'
+                      : 'bg-white hover:bg-slate-50 text-sky-600 border-slate-200/80'
+                  }`}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  <span>Export Audit</span>
+                </button>
+
+                {/* Keyboard Shortcuts Cheat Sheet (P3) */}
+                <button
+                  type="button"
+                  onClick={() => setShowShortcutsModal(true)}
+                  title="View Tactical VMS Keyboard Shortcuts (?)"
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                    isSocDark
+                      ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
+                      : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
+                  }`}
+                >
+                  <span>⌨ Hotkeys</span>
+                </button>
+
                 {/* Audio Surge Alarm Dispatcher */}
                 <button
                   type="button"
@@ -500,7 +650,7 @@ const CameraFeeds: React.FC = () => {
                     showToast(next ? 'Audible crowd alarms enabled' : 'Audible crowd alarms muted');
                   }}
                   title={soundActive ? 'Audible crowd surge alarms active (Click to mute)' : 'Audible crowd surge alarms muted (Click to enable)'}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isAlarmSounding
                       ? 'bg-rose-600 text-white border-rose-600 animate-pulse ring-2 ring-rose-500/50'
                       : soundActive
@@ -526,7 +676,7 @@ const CameraFeeds: React.FC = () => {
                       </>
                     )}
                   </svg>
-                  <span>{soundActive ? (isAlarmSounding ? 'SURGE ALARM' : 'Audio Alert ON') : 'Audio Muted'}</span>
+                  <span>{soundActive ? (isAlarmSounding ? 'SURGE' : 'Alarm ON') : 'Muted'}</span>
                 </button>
 
                 {/* Dark Room Mode Toggle */}
@@ -538,7 +688,7 @@ const CameraFeeds: React.FC = () => {
                     showToast(next ? 'Dark Room Mode enabled' : 'Day Light Mode enabled');
                   }}
                   title={isSocDark ? 'Switch to Standard Day Light Mode' : 'Switch to Low-Light Dark Room Mode'}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isSocDark
                       ? 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
                       : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
@@ -578,7 +728,7 @@ const CameraFeeds: React.FC = () => {
                       ? `Surveillance Tour active: rotating cameras every 15s (next in ${tourSecondsLeft}s)`
                       : 'Enable Auto-Tour Surveillance Loop (15s rotation)'
                   }
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                  className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isAutoTour
                       ? 'bg-emerald-600 text-white border-emerald-600 animate-pulse'
                       : isSocDark
@@ -592,12 +742,12 @@ const CameraFeeds: React.FC = () => {
                   <span>{isAutoTour ? `Tour (${tourSecondsLeft}s)` : 'Auto-Tour'}</span>
                 </button>
 
-                {/* Video Wall / Theatre Mode Toggle */}
+                {/* Video Wall / Theatre Mode Toggle (Span 2 to balance grid) */}
                 <button
                   type="button"
                   onClick={() => setIsWallMode(!isWallMode)}
                   title={isWallMode ? 'Exit Video Wall Mode' : 'Enter Theatre Video Wall Mode (Hide Sidebars)'}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
+                  className={`col-span-2 inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
                     isWallMode
                       ? 'bg-[#0071e3] text-white border-[#0071e3]'
                       : isSocDark
@@ -610,7 +760,7 @@ const CameraFeeds: React.FC = () => {
                     <line x1="8" y1="21" x2="16" y2="21" />
                     <line x1="12" y1="17" x2="12" y2="21" />
                   </svg>
-                  <span>{isWallMode ? 'Exit Wall' : 'Video Wall'}</span>
+                  <span>{isWallMode ? 'Exit Video Wall' : 'Video Wall Mode'}</span>
                 </button>
               </div>
             </div>
@@ -651,33 +801,41 @@ const CameraFeeds: React.FC = () => {
                   )}
                 </div>
 
-                {/* Filter Pills with macOS Segmented Control */}
-                <div className="mac-segmented flex items-center">
-                  {(['all', 'anomaly', 'high_critical', 'normal'] as const).map((status) => {
-                    const labels = {
-                      all: `All (${cameras.length})`,
-                      anomaly: `Anomalies (${alerts.filter((a) => !a.acknowledged).length})`,
-                      high_critical: 'Surge / High',
-                      normal: 'Normal',
-                    };
-                    return (
-                      <button
-                        key={status}
-                        type="button"
-                        onClick={() => setFilterStatus(status)}
-                        className={`px-2.5 py-1 text-xs transition-all ${
-                          filterStatus === status
-                            ? 'mac-pill-active'
-                            : isSocDark
-                              ? 'text-slate-400 hover:text-white font-medium'
-                              : 'text-slate-600 hover:text-slate-900 font-medium'
-                        }`}
-                      >
-                        {labels[status]}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Filter Pills */}
+                <RubberSegment
+                  items={[
+                    { value: 'all', label: `All (${cameras.length})` },
+                    { value: 'anomaly', label: `Anomalies (${alerts.filter((a) => !a.acknowledged).length})` },
+                    { value: 'high_critical', label: 'Surge / High' },
+                    { value: 'normal', label: 'Normal' },
+                  ]}
+                  value={filterStatus}
+                  onChange={(val) => setFilterStatus(val as FilterStatus)}
+                  size="sm"
+                  equalSlots={false}
+                  trackColor={isSocDark ? '#1e293b' : '#e2e8f0'}
+                  thumbColor={
+                    filterStatus === 'anomaly'
+                      ? '#f43f5e'
+                      : filterStatus === 'high_critical'
+                        ? '#f59e0b'
+                        : isSocDark
+                          ? '#334155'
+                          : '#ffffff'
+                  }
+                  textColor={isSocDark ? '#94a3b8' : '#64748b'}
+                  activeTextColor={
+                    filterStatus === 'anomaly' || filterStatus === 'high_critical'
+                      ? '#ffffff'
+                      : isSocDark
+                        ? '#ffffff'
+                        : '#0f172a'
+                  }
+                  radius={10}
+                  inset={2.5}
+                  speed={1}
+                  aria-label="Camera channel status filter"
+                />
               </div>
 
               {/* Right: Sort and Layout Mode Selectors */}
@@ -702,29 +860,25 @@ const CameraFeeds: React.FC = () => {
                 </div>
 
                 {/* Layout Mode Segmented Control */}
-                <div className="mac-segmented flex items-center">
-                  {([
-                    { id: 'grid', label: 'Grid View' },
-                    { id: 'hero', label: 'Main Feed' },
-                    { id: 'dense', label: 'All Cameras' },
-                    { id: 'focus', label: 'Single View' },
-                  ] as const).map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => setLayout(item.id)}
-                      className={`px-2.5 py-1 text-xs transition-all ${
-                        layout === item.id
-                          ? 'mac-pill-active'
-                          : isSocDark
-                            ? 'text-slate-400 hover:text-white font-medium'
-                            : 'text-slate-600 hover:text-slate-900 font-medium'
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                <RubberSegment
+                  items={[
+                    { value: 'grid', label: 'Grid View' },
+                    { value: 'hero', label: 'Main Feed' },
+                    { value: 'dense', label: 'All Cameras' },
+                    { value: 'focus', label: 'Single View' },
+                  ]}
+                  value={layout}
+                  onChange={(val) => setLayout(val as LayoutMode)}
+                  size="sm"
+                  trackColor={isSocDark ? '#1e293b' : '#e2e8f0'}
+                  thumbColor={isSocDark ? '#334155' : '#ffffff'}
+                  textColor={isSocDark ? '#94a3b8' : '#64748b'}
+                  activeTextColor={isSocDark ? '#ffffff' : '#0f172a'}
+                  radius={10}
+                  inset={2.5}
+                  speed={1}
+                  aria-label="Surveillance layout mode"
+                />
               </div>
             </div>
 
@@ -775,6 +929,7 @@ const CameraFeeds: React.FC = () => {
                         polygonCoords={heroCam.polygonCoords}
                         areaSqM={getCameraArea(heroCam.cameraId)}
                         isDark={isSocDark}
+                        isMasterPlaying={isMasterPlaying}
                         anomaly={!!alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)}
                         anomalyType={alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)?.type}
                         onCalibrateZone={() => setCalibratingCamera(heroCam)}
@@ -821,6 +976,7 @@ const CameraFeeds: React.FC = () => {
                             polygonCoords={auxCam.polygonCoords}
                             areaSqM={getCameraArea(auxCam.cameraId)}
                             isDark={isSocDark}
+                            isMasterPlaying={isMasterPlaying}
                             anomaly={!!hasActiveAnomaly}
                             anomalyType={hasActiveAnomaly?.type}
                             onCalibrateZone={() => setCalibratingCamera(auxCam)}
@@ -920,6 +1076,7 @@ const CameraFeeds: React.FC = () => {
                       polygonCoords={focusedCam.polygonCoords}
                       areaSqM={getCameraArea(focusedCam.cameraId)}
                       isDark={isSocDark}
+                      isMasterPlaying={isMasterPlaying}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
                       onCalibrateZone={() => setCalibratingCamera(focusedCam)}
@@ -959,6 +1116,7 @@ const CameraFeeds: React.FC = () => {
                       polygonCoords={cam.polygonCoords}
                       areaSqM={getCameraArea(cam.cameraId)}
                       isDark={isSocDark}
+                      isMasterPlaying={isMasterPlaying}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
                       onCalibrateZone={() => setCalibratingCamera(cam)}
@@ -1021,6 +1179,14 @@ const CameraFeeds: React.FC = () => {
           onIncidentCreated={(newInc) => {
             showToast(`Security incident bookmark #${newInc.id || 'CREATED'} recorded.`);
           }}
+        />
+      )}
+
+      {/* VMS Keyboard Shortcuts Cheat Sheet Modal (P3) */}
+      {showShortcutsModal && (
+        <KeyboardShortcutsModal
+          onClose={() => setShowShortcutsModal(false)}
+          isDark={isSocDark}
         />
       )}
     </div>
