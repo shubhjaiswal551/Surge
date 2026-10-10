@@ -8,7 +8,7 @@ import ZoneCalibrationModal from '../components/dashboard/ZoneCalibrationModal';
 import FlagIncidentModal from '../components/dashboard/FlagIncidentModal';
 import KeyboardShortcutsModal from '../components/dashboard/KeyboardShortcutsModal';
 import RubberSegment from '../components/ui/RubberSegment';
-import { SearchX, X } from 'lucide-react';
+import { SearchX, X, Pause, Play, Keyboard } from 'lucide-react';
 import { useCrowdStream } from '../hooks/useCrowdStream';
 import { API_BASE_URL } from '../config/api';
 import { playChime, isSoundEnabled, setSoundEnabled } from '../lib/sound';
@@ -605,7 +605,8 @@ const CameraFeeds: React.FC = () => {
                         : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
                   }`}
                 >
-                  <span>{isMasterPlaying ? '⏸ Freeze All' : '▶ Resume'}</span>
+                  {isMasterPlaying ? <Pause size={13} className="shrink-0" /> : <Play size={13} className="shrink-0" />}
+                  <span>{isMasterPlaying ? 'Freeze All' : 'Resume'}</span>
                 </button>
 
                 {/* Batch Forensic Report Export (P3) */}
@@ -638,7 +639,8 @@ const CameraFeeds: React.FC = () => {
                       : 'bg-white hover:bg-slate-50 text-slate-700 border-slate-200/80'
                   }`}
                 >
-                  <span>⌨ Hotkeys</span>
+                  <Keyboard size={13} className="shrink-0" />
+                  <span>Hotkeys</span>
                 </button>
 
                 {/* Audio Surge Alarm Dispatcher */}

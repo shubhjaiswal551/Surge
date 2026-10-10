@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
-import { Volume2, Megaphone, CheckCircle2, X } from 'lucide-react';
+import { Volume2, Megaphone, CheckCircle2, X, RotateCcw, History, Grid3X3, Activity } from 'lucide-react';
 import type { DensityLevel } from '../../types/crowdEvent';
 import BroadcastAnnouncementModal from './BroadcastAnnouncementModal';
 import RubberSegment from '../ui/RubberSegment';
@@ -1382,21 +1382,23 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                 type="button"
                 onClick={() => handleRewind(10)}
                 title="Rewind video 10 seconds"
-                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${
                   isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200/70 hover:bg-slate-300 text-slate-700'
                 }`}
               >
-                ⏪ -10s
+                <RotateCcw size={11} className="shrink-0" />
+                <span>-10s</span>
               </button>
               <button
                 type="button"
                 onClick={() => handleRewind(30)}
                 title="Rewind video 30 seconds"
-                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                className={`px-2 py-1 rounded-lg text-[11px] font-medium transition-colors flex items-center gap-1 ${
                   isDark ? 'bg-slate-800 hover:bg-slate-700 text-slate-200' : 'bg-slate-200/70 hover:bg-slate-300 text-slate-700'
                 }`}
               >
-                ⏪ -30s
+                <RotateCcw size={11} className="shrink-0" />
+                <span>-30s</span>
               </button>
               <RubberSegment
                 items={[
@@ -1489,7 +1491,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                   : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
             }`}
           >
-            <span>⏪</span>
+            <History size={12} className="shrink-0" />
             <span>DVR</span>
           </button>
 
@@ -1519,7 +1521,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                   : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
             }`}
           >
-            <span>▦</span>
+            <Grid3X3 size={12} className="shrink-0" />
             <span>Grid</span>
           </button>
 
@@ -1535,7 +1537,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                   : 'bg-slate-100/90 text-slate-700 border-slate-200/80 hover:bg-slate-200/80'
             }`}
           >
-            <span>ℹ</span>
+            <Activity size={12} className="shrink-0" />
             <span>Diagnostics</span>
           </button>
 
