@@ -2,6 +2,7 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, FileText } from 'lucide-react';
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
+import { generateClientForensicDebrief } from '../../lib/forensicDebrief';
 
 interface SnapshotModalProps {
   alert: Alert | null;
@@ -403,6 +404,20 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     if (!alert) return;
     setIsDebriefLoading(true);
     setDebriefError(null);
+
+    const fallbackDebrief = generateClientForensicDebrief({
+      incidentId: alert.id,
+      cameraId: alert.cameraId,
+      zoneName: alert.zoneName,
+      eventType: alert.type,
+      severity: alert.numericSeverity || (alert.severity === 'critical' ? 5 : alert.severity === 'high' ? 4 : 3),
+      density: alert.metrics?.density ?? 2.8,
+      headcount: alert.metrics?.headcount ?? 70,
+      velocityVariance: alert.metrics?.velocity_variance ?? 1.2,
+      avgSpeed: alert.metrics?.avg_speed ?? 1.1,
+      flowVector: alert.metrics?.flow_vector ?? [0, 0],
+    });
+
     try {
       const res = await fetch(`${API_BASE_URL}/incidents/${alert.id}/ai-debrief`, {
         method: 'POST',
@@ -421,11 +436,17 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           },
         }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = await res.json();
-      setAiDebrief(data);
-    } catch (err: any) {
-      setDebriefError(err.message || 'Failed to fetch AI debrief');
+
+      if (res.ok) {
+        const data = await res.json();
+        setAiDebrief(data);
+      } else {
+        // Fall back gracefully to client forensic engine (e.g. on Vercel preview/static hosting)
+        setAiDebrief(fallbackDebrief);
+      }
+    } catch {
+      // In standalone client deployment (e.g. Vercel), populate immediately from client engine
+      setAiDebrief(fallbackDebrief);
     } finally {
       setIsDebriefLoading(false);
     }
