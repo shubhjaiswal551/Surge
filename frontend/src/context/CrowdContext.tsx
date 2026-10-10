@@ -248,7 +248,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (hasUnackSame) {
             return prev.map((a) =>
               a.cameraId === ev.cameraId && a.type === anomalyType && !a.acknowledged
-                ? { ...a, timestamp: ev.timestamp || new Date().toISOString(), metrics: ev.metrics || a.metrics }
+                ? { ...a, metrics: ev.metrics || a.metrics }
                 : a,
             );
           }
@@ -320,7 +320,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           if (hasUnackSame) {
             return prev.map((a) =>
               a.cameraId === alt.cameraId && a.type === alt.type && !a.acknowledged
-                ? { ...a, timestamp: alt.timestamp, metrics: alt.metrics || a.metrics }
+                ? { ...a, metrics: alt.metrics || a.metrics }
                 : a,
             );
           }

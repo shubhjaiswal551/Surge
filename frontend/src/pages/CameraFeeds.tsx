@@ -224,7 +224,7 @@ const CameraFeeds: React.FC = () => {
         if (hasUnacknowledgedSameAlert) {
           return prev.map((a) =>
             a.cameraId === ev.cameraId && a.type === anomalyType && !a.acknowledged
-              ? { ...a, timestamp: ev.timestamp || new Date().toISOString() }
+              ? { ...a, metrics: ev.metrics || a.metrics }
               : a,
           );
         }
