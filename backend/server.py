@@ -14,6 +14,10 @@ for p in [str(ROOT_DIR), str(BACKEND_DIR)]:
     if p not in sys.path:
         sys.path.insert(0, p)
 
+from dotenv import load_dotenv
+load_dotenv(BACKEND_DIR / ".env")
+load_dotenv(ROOT_DIR / ".env")
+
 import uvicorn
 from app.main import app
 

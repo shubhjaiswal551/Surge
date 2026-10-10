@@ -12,7 +12,7 @@ import httpx
 
 logger = logging.getLogger("safecrowd.gemini")
 
-GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
 async def generate_tactical_debrief(
     incident_id: str,
@@ -99,7 +99,7 @@ Provide your response in valid JSON matching this exact structure:
                     if candidates and "content" in candidates[0]:
                         raw_json_str = candidates[0]["content"]["parts"][0]["text"]
                         parsed = json.loads(raw_json_str)
-                        parsed["source"] = "Google Gemini 1.5 Flash (Cloud AI)"
+                        parsed["source"] = "Google Gemini 3.8 Flash (Cloud AI)"
                         parsed["has_api_key"] = True
                         return parsed
                 else:
