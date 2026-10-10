@@ -109,14 +109,16 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
 
           if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
             const timeline = telemetry.timeline;
-            let idx1 = timeline.findIndex((item: any) => item.time >= t);
+            const loopDuration = telemetry.duration || timeline[timeline.length - 1].time || 15.12;
+            const effectiveTime = loopDuration > 0 ? (t % loopDuration) : t;
+            let idx1 = timeline.findIndex((item: any) => item.time >= effectiveTime);
             if (idx1 === -1) idx1 = timeline.length - 1;
             const idx0 = Math.max(0, idx1 - 1);
 
             const kf0 = timeline[idx0];
             const kf1 = timeline[idx1];
             const dt = kf1.time - kf0.time;
-            const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+            const factor = dt > 0 ? Math.min(1, Math.max(0, (effectiveTime - kf0.time) / dt)) : 0;
 
             const aiBoxes: any[] = [];
             const kf0Boxes = kf0.boxes || [];

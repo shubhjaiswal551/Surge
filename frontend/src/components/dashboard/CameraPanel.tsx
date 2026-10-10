@@ -173,8 +173,11 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     return s;
   }, [videoSrc, videoError]);
 
-  // Real-time model headcount passed directly from backend perception pipeline
-  const liveHeadcount = headcount;
+  // Dynamic AI-detected headcount if telemetry is present
+  const [dynamicAiCount, setDynamicAiCount] = useState<number | null>(null);
+  const liveHeadcount = dynamicAiCount !== null ? dynamicAiCount : headcount;
+  const lastSyncTimeRef = useRef<number>(0);
+  const lastSyncCountRef = useRef<number | null>(null);
 
   const effectiveDensity: DensityLevel = useMemo(() => {
     if (density) return density;
@@ -401,50 +404,105 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               }
             }
 
-            // 3. Draw AI Tracked Bounding Boxes (if enabled)
-            if (showBoxes) {
-              let currentBoxes: Array<{
-                x: number;
-                y: number;
-                w: number;
-                h: number;
-                label: string;
-                isAnomaly?: boolean;
-              }> = [];
+            // 3. AI Tracked Bounding Boxes & Spatial Perception
+            let currentBoxes: Array<{
+              x: number;
+              y: number;
+              w: number;
+              h: number;
+              label: string;
+              isAnomaly?: boolean;
+            }> = [];
 
-              if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
-                const timeline = telemetry.timeline;
-                let idx1 = timeline.findIndex((item) => item.time >= t);
-                if (idx1 === -1) idx1 = timeline.length - 1;
-                const idx0 = Math.max(0, idx1 - 1);
+            if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+              const timeline = telemetry.timeline;
+              const loopDuration = telemetry.duration || timeline[timeline.length - 1].time || 15.12;
+              const effectiveTime = loopDuration > 0 ? (t % loopDuration) : t;
+              let idx1 = timeline.findIndex((item) => item.time >= effectiveTime);
+              if (idx1 === -1) idx1 = timeline.length - 1;
+              const idx0 = Math.max(0, idx1 - 1);
 
-                const kf0 = timeline[idx0];
-                const kf1 = timeline[idx1];
-                const dt = kf1.time - kf0.time;
-                const factor = dt > 0 ? Math.min(1, Math.max(0, (t - kf0.time) / dt)) : 0;
+              const kf0 = timeline[idx0];
+              const kf1 = timeline[idx1];
+              const dt = kf1.time - kf0.time;
+              const factor = dt > 0 ? Math.min(1, Math.max(0, (effectiveTime - kf0.time) / dt)) : 0;
 
-                currentBoxes = (kf0.boxes || []).map((b0) => {
-                  const b1 = (kf1.boxes || []).find((b) => b.id === b0.id) || b0;
-                  return {
-                    x: b0.x + (b1.x - b0.x) * factor,
-                    y: b0.y + (b1.y - b0.y) * factor,
-                    w: b0.w + (b1.w - b0.w) * factor,
-                    h: b0.h + (b1.h - b0.h) * factor,
-                    label: `${b0.label} · ${b0.conf}%`,
-                    isAnomaly: b0.isAnomaly || anomaly,
-                  };
-                });
-              } else {
-                const progress = Math.min(1, Math.max(0, (t % dur) / dur));
-                currentBoxes = baseTracks.map((trk) => ({
-                  x: trk.startX + (trk.endX - trk.startX) * progress,
-                  y: trk.startY + (trk.endY - trk.startY) * progress,
-                  w: trk.w,
-                  h: trk.h,
-                  label: `${trk.id} · ${trk.conf}%`,
-                  isAnomaly: anomaly,
-                }));
+              const interpolated: typeof currentBoxes = [];
+              const matchedIds = new Set<number>();
+
+              for (const b0 of kf0.boxes || []) {
+                matchedIds.add(b0.id);
+                const b1 = (kf1.boxes || []).find((b) => b.id === b0.id);
+                if (b1) {
+                  const dx = b1.x - b0.x;
+                  const dy = b1.y - b0.y;
+                  const displacement = Math.hypot(dx, dy);
+
+                  // Pedestrian in 0.16s only moves ~0.2m (< 1.8% screen).
+                  // If displacement > 2.2%, DO NOT slide across open space!
+                  if (displacement <= 2.2) {
+                    interpolated.push({
+                      x: b0.x + dx * factor,
+                      y: b0.y + dy * factor,
+                      w: b0.w + (b1.w - b0.w) * factor,
+                      h: b0.h + (b1.h - b0.h) * factor,
+                      label: `${b0.label} · ${b0.conf}%`,
+                      isAnomaly: !!b0.isAnomaly,
+                    });
+                  } else {
+                    const snapBox = factor < 0.5 ? b0 : b1;
+                    interpolated.push({
+                      x: snapBox.x,
+                      y: snapBox.y,
+                      w: snapBox.w,
+                      h: snapBox.h,
+                      label: `${snapBox.label} · ${snapBox.conf}%`,
+                      isAnomaly: !!snapBox.isAnomaly,
+                    });
+                  }
+                } else {
+                  // b0 disappeared in kf1 (person exited/occluded): cleanly vanish, don't slide
+                  if (factor < 0.5) {
+                    interpolated.push({
+                      x: b0.x,
+                      y: b0.y,
+                      w: b0.w,
+                      h: b0.h,
+                      label: `${b0.label} · ${b0.conf}%`,
+                      isAnomaly: !!b0.isAnomaly,
+                    });
+                  }
+                }
               }
+
+              // Any newly appeared person in kf1: appear at their location
+              for (const b1 of kf1.boxes || []) {
+                if (!matchedIds.has(b1.id) && factor >= 0.5) {
+                  interpolated.push({
+                    x: b1.x,
+                    y: b1.y,
+                    w: b1.w,
+                    h: b1.h,
+                    label: `${b1.label} · ${b1.conf}%`,
+                    isAnomaly: !!b1.isAnomaly,
+                  });
+                }
+              }
+
+              currentBoxes = interpolated;
+            } else {
+              const progress = Math.min(1, Math.max(0, (t % dur) / dur));
+              currentBoxes = baseTracks.map((trk) => ({
+                x: trk.startX + (trk.endX - trk.startX) * progress,
+                y: trk.startY + (trk.endY - trk.startY) * progress,
+                w: trk.w,
+                h: trk.h,
+                label: `${trk.id} · ${trk.conf}%`,
+                isAnomaly: anomaly,
+              }));
+            }
+
+            if (showBoxes) {
 
               for (const b of currentBoxes) {
                 const bx = (b.x / 100) * rect.width;
@@ -453,22 +511,22 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                 const bh = (b.h / 100) * rect.height;
                 const boxAnomaly = !!b.isAnomaly;
 
-                // Box fill
+                // 1. Box semi-transparent fill
                 ctx.fillStyle = boxAnomaly
                   ? 'rgba(244, 63, 94, 0.16)'
                   : 'rgba(16, 185, 129, 0.12)';
                 ctx.fillRect(bx, by, bw, bh);
 
-                // Box border
-                ctx.lineWidth = boxAnomaly ? 2 : 1.5;
+                // 2. High-contrast visible box border
+                ctx.lineWidth = boxAnomaly ? 2.0 : 1.6;
                 ctx.strokeStyle = boxAnomaly
-                  ? 'rgba(251, 113, 133, 0.95)'
-                  : 'rgba(52, 211, 153, 0.90)';
+                  ? 'rgba(244, 63, 94, 0.95)'
+                  : 'rgba(16, 185, 129, 0.95)';
                 ctx.strokeRect(bx, by, bw, bh);
 
-                // Corner Reticles
-                const cLen = Math.min(6, Math.min(bw, bh) * 0.25);
-                ctx.lineWidth = 2;
+                // 3. Crisp corner reticle brackets
+                const cLen = Math.max(4, Math.min(6, Math.min(bw, bh) * 0.25));
+                ctx.lineWidth = 2.2;
                 ctx.strokeStyle = boxAnomaly ? '#fda4af' : '#6ee7b7';
 
                 ctx.beginPath();
@@ -483,25 +541,37 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                 ctx.lineTo(bx + bw, by + cLen);
                 ctx.stroke();
 
-                // Top Badge Label
+                // 4. Clean Tactical HUD Pill Badge
                 ctx.font = '600 9px monospace';
                 const textMetrics = ctx.measureText(b.label);
-                const badgeW = textMetrics.width + 14;
-                const badgeH = 15;
+                const badgeW = textMetrics.width + 12;
+                const badgeH = 14;
                 const badgeY = Math.max(0, by - badgeH - 2);
 
-                ctx.fillStyle = boxAnomaly ? '#e11d48' : '#047857';
-                if (ctx.roundRect) {
-                  ctx.beginPath();
-                  ctx.roundRect(bx, badgeY, badgeW, badgeH, 3);
-                  ctx.fill();
-                } else {
-                  ctx.fillRect(bx, badgeY, badgeW, badgeH);
-                }
+                // Dark sleek tactical pill background
+                ctx.fillStyle = boxAnomaly ? '#e11d48' : 'rgba(3, 7, 18, 0.92)';
+                ctx.strokeStyle = boxAnomaly ? '#fda4af' : 'rgba(16, 185, 129, 0.50)';
+                ctx.lineWidth = 1;
 
-                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                  ctx.roundRect(bx, badgeY, badgeW, badgeH, 2);
+                } else {
+                  ctx.rect(bx, badgeY, badgeW, badgeH);
+                }
+                ctx.fill();
+                ctx.stroke();
+
+                // Status Dot indicator
+                ctx.fillStyle = boxAnomaly ? '#ffffff' : '#34d178';
+                ctx.beginPath();
+                ctx.arc(bx + 4.5, badgeY + badgeH / 2, 2, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Text label
+                ctx.fillStyle = boxAnomaly ? '#ffffff' : '#6ee7b7';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(b.label, bx + 6, badgeY + badgeH / 2);
+                ctx.fillText(b.label, bx + 9, badgeY + badgeH / 2);
               }
             }
 
@@ -521,9 +591,40 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               }
               ctx.closePath();
 
+              const normPoly: [number, number][] = effectivePolygon.map((pt) => [
+                pt[0] <= 100 ? pt[0] : (pt[0] / 960) * 100,
+                pt[1] <= 100 ? pt[1] : (pt[1] / 540) * 100,
+              ]);
+
+              let insideZoneCount = 0;
+              for (const b of currentBoxes) {
+                const cx = b.x + b.w / 2;
+                const cy = b.y + b.h * 0.85;
+                let inside = false;
+                for (let i = 0, j = normPoly.length - 1; i < normPoly.length; j = i++) {
+                  const xi = normPoly[i][0], yi = normPoly[i][1];
+                  const xj = normPoly[j][0], yj = normPoly[j][1];
+                  const intersect = ((yi > cy) !== (yj > cy)) &&
+                    (cx < ((xj - xi) * (cy - yi)) / (yj - yi) + xi);
+                  if (intersect) inside = !inside;
+                }
+                if (inside) insideZoneCount++;
+              }
+
+              const displayCount = currentBoxes.length > 0 ? (insideZoneCount > 0 ? insideZoneCount : currentBoxes.length) : liveHeadcount;
               const areaVal = areaSqM || (isCam1 ? 45.0 : 60.0);
-              const densityPerSqM = (liveHeadcount / areaVal).toFixed(1);
-              const isSurgeThreshold = effectiveDensity === 'critical' || Number(densityPerSqM) >= 4.5;
+              const densityPerSqM = (displayCount / areaVal).toFixed(1);
+              const isSurgeThreshold = Number(densityPerSqM) >= 4.0 || effectiveDensity === 'critical';
+
+              // Sync to React state throttled so the panel stat card updates with live AI count
+              if (currentBoxes.length > 0) {
+                const now = performance.now();
+                if (now - lastSyncTimeRef.current > 300 && lastSyncCountRef.current !== displayCount) {
+                  lastSyncTimeRef.current = now;
+                  lastSyncCountRef.current = displayCount;
+                  setDynamicAiCount(displayCount);
+                }
+              }
 
               ctx.fillStyle = isSurgeThreshold
                 ? 'rgba(244, 63, 94, 0.16)'
@@ -557,7 +658,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
               // Zone label tag
               ctx.font = '600 9px monospace';
-              const zoneTag = `${zoneName.toUpperCase()} · ${densityPerSqM} P/m² · ${areaVal}m²`;
+              const zoneTag = `${zoneName.toUpperCase()} · ${densityPerSqM} P/m² · ${displayCount} PAX`;
               const tagW = ctx.measureText(zoneTag).width + 14;
               ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
               if (ctx.roundRect) ctx.roundRect(fx + 6, fy + 6, tagW, 17, 4);
