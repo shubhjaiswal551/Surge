@@ -1,4 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { CheckCircle2, Cpu } from 'lucide-react';
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
 
@@ -348,8 +349,9 @@ const TimelineScrubber: React.FC<{
           className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
           style={{ left: '60%' }}
         >
-          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-semibold px-1 rounded bg-rose-600 text-white whitespace-nowrap shadow-xs">
-            🔴 TRIGGER
+          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-semibold px-1 rounded bg-rose-600 text-white whitespace-nowrap shadow-xs flex items-center gap-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-200 animate-ping inline-block" />
+            TRIGGER
           </span>
         </div>
 
@@ -505,7 +507,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     async function resolveTelemetry() {
       for (const url of candidateUrls) {
         try {
-          const res = await fetch(url);
+          const res = await fetch(`${url}?v=${Date.now()}`);
           if (res.ok) {
             const data = await res.json();
             if (isMounted && data && data.timeline) {
@@ -897,8 +899,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           </div>
 
           {actionSuccess && (
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
-              ✓ {actionSuccess}
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+              <span>{actionSuccess}</span>
             </div>
           )}
 
@@ -906,7 +909,8 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200/80 text-xs space-y-2">
             <div className="flex items-center justify-between pb-1.5 border-b border-slate-200/60">
               <span className="font-semibold text-slate-800 flex items-center gap-1.5">
-                <span>🤖</span> AI Computer Vision Forensic Telemetry
+                <Cpu size={14} className="text-blue-600 shrink-0" />
+                <span>AI Computer Vision Forensic Telemetry</span>
               </span>
               <span className="font-mono text-[10px] text-slate-500 bg-white px-2 py-0.5 rounded border border-slate-200/60">
                 Pipeline: YOLOv8 + ByteTrack v2.1

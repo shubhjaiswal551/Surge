@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { API_BASE_URL } from '../../config/api';
 import type { DensityLevel } from '../../types/crowdEvent';
 
@@ -128,7 +129,7 @@ const FlagIncidentModal: React.FC<FlagIncidentModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6 space-y-4 text-xs">
           {successMsg ? (
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 flex items-center gap-3 animate-fade-in">
-              <span className="text-lg">✓</span>
+              <CheckCircle2 size={18} className="text-emerald-600 shrink-0" />
               <div className="font-semibold">{successMsg}</div>
             </div>
           ) : (

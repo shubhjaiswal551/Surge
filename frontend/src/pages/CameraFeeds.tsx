@@ -8,6 +8,7 @@ import ZoneCalibrationModal from '../components/dashboard/ZoneCalibrationModal';
 import FlagIncidentModal from '../components/dashboard/FlagIncidentModal';
 import KeyboardShortcutsModal from '../components/dashboard/KeyboardShortcutsModal';
 import RubberSegment from '../components/ui/RubberSegment';
+import { SearchX, X } from 'lucide-react';
 import { useCrowdStream } from '../hooks/useCrowdStream';
 import { API_BASE_URL } from '../config/api';
 import { playChime, isSoundEnabled, setSoundEnabled } from '../lib/sound';
@@ -796,7 +797,7 @@ const CameraFeeds: React.FC = () => {
                       onClick={() => setSearchQuery('')}
                       className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
                     >
-                      ✕
+                      <X size={14} />
                     </button>
                   )}
                 </div>
@@ -885,7 +886,9 @@ const CameraFeeds: React.FC = () => {
             {/* Layout Mode Content Renders */}
             {filteredCameras.length === 0 ? (
               <div className={`card p-12 text-center rounded-2xl border ${isSocDark ? 'bg-slate-900/80 border-slate-800 text-slate-300' : 'bg-white/60 border-slate-200 text-slate-500'}`}>
-                <div className="text-3xl mb-2">🔍</div>
+                <div className="w-12 h-12 mx-auto mb-3 rounded-2xl bg-slate-800/40 border border-slate-700/50 flex items-center justify-center text-slate-400">
+                  <SearchX size={24} strokeWidth={1.75} />
+                </div>
                 <div className={`text-sm font-semibold ${isSocDark ? 'text-white' : 'text-slate-700'}`}>No camera channels match criteria</div>
                 <div className="text-xs text-slate-400 mt-1">Try clearing the search query or changing your status filter.</div>
                 <button

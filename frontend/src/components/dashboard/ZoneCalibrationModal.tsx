@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { X, CheckCircle2, AlertTriangle, Check } from 'lucide-react';
 import RubberSegment from '../ui/RubberSegment';
 import { API_BASE_URL } from '../../config/api';
 
@@ -174,15 +175,16 @@ const ZoneCalibrationModal: React.FC<ZoneCalibrationModalProps> = ({
             onClick={onClose}
             className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
           >
-            ✕
+            <X size={15} />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-4 overflow-y-auto">
           {successMsg && (
-            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium">
-              ✓ {successMsg}
+            <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
+              <CheckCircle2 size={14} className="shrink-0 text-emerald-600" />
+              <span>{successMsg}</span>
             </div>
           )}
 
@@ -279,10 +281,18 @@ const ZoneCalibrationModal: React.FC<ZoneCalibrationModalProps> = ({
             </div>
 
             <div className="col-span-full pt-3 flex items-center justify-between border-t border-slate-100">
-              <div className="text-xs text-slate-500">
-                {points.length < 3
-                  ? '⚠️ Define at least 3 perimeter points to complete zone geometry.'
-                  : `✓ Polygon closed with ${points.length} vertices. Area calibrated to ${areaSqM} m².`}
+              <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                {points.length < 3 ? (
+                  <>
+                    <AlertTriangle size={13} className="text-amber-500 shrink-0" />
+                    <span>Define at least 3 perimeter points to complete zone geometry.</span>
+                  </>
+                ) : (
+                  <>
+                    <Check size={13} className="text-emerald-500 shrink-0" />
+                    <span>Polygon closed with {points.length} vertices. Area calibrated to {areaSqM} m².</span>
+                  </>
+                )}
               </div>
 
               <div className="flex items-center gap-2.5">

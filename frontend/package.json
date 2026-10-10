@@ -12,6 +12,7 @@
   "dependencies": {
     "autoprefixer": "^10.5.4",
     "firebase": "^12.17.1",
+    "lucide-react": "^1.55.0",
     "motion": "^14.0.0",
     "postcss": "^8.5.25",
     "qrcode.react": "^4.2.0",

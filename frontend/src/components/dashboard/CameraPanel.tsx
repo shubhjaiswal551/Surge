@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState, useMemo, useCallback } from 'react';
+import { Volume2, Megaphone, CheckCircle2, X } from 'lucide-react';
 import type { DensityLevel } from '../../types/crowdEvent';
 import BroadcastAnnouncementModal from './BroadcastAnnouncementModal';
 import RubberSegment from '../ui/RubberSegment';
@@ -288,7 +289,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
       telemetryUrl = '/telemetry_concourse.json';
     }
 
-    fetch(telemetryUrl)
+    fetch(`${telemetryUrl}?v=${Date.now()}`)
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
         if (isMounted && data && data.timeline) {
@@ -1157,14 +1158,16 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
         {/* Snapshot Download Confirmation Banner */}
         {snapshotSuccess && (
           <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-emerald-600/90 text-white text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1.5 animate-bounce">
-            <span>✓ Snapshot Saved</span>
+            <CheckCircle2 size={13} className="shrink-0" />
+            <span>Snapshot Saved</span>
           </div>
         )}
 
         {/* Dossier Download Confirmation Banner */}
         {dossierSuccess && (
           <div className="absolute top-12 left-1/2 -translate-x-1/2 z-30 bg-sky-600/90 text-white text-xs px-3 py-1 rounded-full shadow-lg backdrop-blur-md flex items-center gap-1.5 animate-bounce">
-            <span>✓ Forensic Dossier Exported (.JSON)</span>
+            <CheckCircle2 size={13} className="shrink-0" />
+            <span>Forensic Dossier Exported (.JSON)</span>
           </div>
         )}
 
@@ -1172,7 +1175,9 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
         {activePaAnnouncement && (
           <div className="absolute top-11 left-3 right-3 z-30 bg-amber-600/95 text-white px-3 py-2 rounded-xl shadow-2xl backdrop-blur-md flex items-center justify-between border border-amber-400/50 animate-in slide-in-from-top-2">
             <div className="flex items-center gap-2 min-w-0">
-              <span className="text-sm shrink-0 animate-bounce">📢</span>
+              <span className="p-1 rounded bg-black/20 shrink-0">
+                <Volume2 size={14} className="animate-pulse" />
+              </span>
               <span className="text-[11px] font-bold uppercase tracking-wider shrink-0">PA LIVE:</span>
               <span className="text-xs truncate font-medium">{activePaAnnouncement}</span>
             </div>
@@ -1238,9 +1243,10 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             <button
               type="button"
               onClick={() => setShowDiagnostics(false)}
-              className="text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded"
+              className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1 px-1.5 py-0.5 rounded"
             >
-              ✕ Close
+              <X size={13} />
+              <span>Close</span>
             </button>
           </div>
 
@@ -1497,7 +1503,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                 : 'bg-slate-100/90 text-amber-700 border-slate-200/80 hover:bg-slate-200/80'
             }`}
           >
-            <span>📢</span>
+            <Megaphone size={12} className="shrink-0" />
             <span>PA</span>
           </button>
 
