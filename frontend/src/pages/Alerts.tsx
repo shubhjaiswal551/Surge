@@ -1,62 +1,26 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import Sidebar from '../components/dashboard/Sidebar';
 import StatusBar from '../components/dashboard/StatusBar';
 import AlertFeed from '../components/dashboard/AlertFeed';
 import RubberSegment from '../components/ui/RubberSegment';
-import { useAuth } from '../context/AuthContext';
-import {
-  startCrowdSimulator,
-  stopCrowdSimulator,
-  onAlert,
-} from '../mocks/crowdSimulator';
-import type { Alert } from '../types/crowdEvent';
+import { useCrowdContext } from '../context/CrowdContext';
 
 const Alerts: React.FC = () => {
-  const { profile } = useAuth();
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const {
+    alerts,
+    acknowledgeAlert,
+    acknowledgeAllAlerts,
+    resolveAlert,
+    unacknowledgedAlertsCount,
+  } = useCrowdContext();
   const [selectedSeverity, setSelectedSeverity] = useState<string>('all');
-
-  useEffect(() => {
-    startCrowdSimulator();
-    const off = onAlert((a) =>
-      setAlerts((prev) => [a, ...prev].slice(0, 200)),
-    );
-    return () => {
-      stopCrowdSimulator();
-      off();
-    };
-  }, []);
-
-  const handleAcknowledge = (id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              acknowledged: true,
-              acknowledgedBy: profile?.displayName ?? 'Operator',
-            }
-          : a,
-      ),
-    );
-  };
-
-  const handleAcknowledgeAll = () => {
-    setAlerts((prev) =>
-      prev.map((a) => ({
-        ...a,
-        acknowledged: true,
-        acknowledgedBy: profile?.displayName ?? 'Operator',
-      })),
-    );
-  };
 
   const filteredAlerts = useMemo(() => {
     if (selectedSeverity === 'all') return alerts;
     return alerts.filter((a) => a.severity === selectedSeverity);
   }, [alerts, selectedSeverity]);
 
-  const unacknowledged = alerts.filter((a) => !a.acknowledged).length;
+  const unacknowledged = unacknowledgedAlertsCount;
 
   return (
     <div className="h-screen w-screen flex overflow-hidden bg-[#f5f5f7]">
@@ -114,7 +78,7 @@ const Alerts: React.FC = () => {
                 {unacknowledged > 0 && (
                   <button
                     type="button"
-                    onClick={handleAcknowledgeAll}
+                    onClick={acknowledgeAllAlerts}
                     className="btn-secondary text-xs"
                   >
                     Acknowledge All
@@ -126,7 +90,8 @@ const Alerts: React.FC = () => {
             <div className="flex-1 min-h-0">
               <AlertFeed
                 alerts={filteredAlerts}
-                onAcknowledge={handleAcknowledge}
+                onAcknowledge={acknowledgeAlert}
+                onResolve={resolveAlert}
               />
             </div>
           </div>

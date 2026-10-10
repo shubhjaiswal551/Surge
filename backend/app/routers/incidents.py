@@ -5,7 +5,8 @@ Handles logging, operator acknowledgement, and resolution workflows per schema.m
 
 import uuid
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
+from pydantic import BaseModel
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from ..models.schemas import (
     IncidentCreate,
@@ -158,3 +159,50 @@ async def dispatch_incident(
         "incident_id": incident_id,
         "operator": dispatch_in.operator_id or user.get("email"),
     }
+
+class DebriefRequest(BaseModel):
+    camera_id: Optional[str] = "cam-002"
+    zone_name: Optional[str] = "Central Concourse"
+    event_type: Optional[str] = "bottleneck"
+    severity: Optional[int] = 3
+    metrics: Optional[Dict[str, Any]] = None
+    image_base64: Optional[str] = None
+
+@router.post("/{incident_id}/ai-debrief")
+async def get_incident_debrief(
+    incident_id: str,
+    payload: Optional[DebriefRequest] = None,
+):
+    from ..services.gemini_service import generate_tactical_debrief
+    incident = INCIDENTS_DB.get(incident_id, {})
+    cam_id = (payload and payload.camera_id) or incident.get("camera_id") or "cam-002"
+    zone = (payload and payload.zone_name) or incident.get("zone_id") or "Central Concourse"
+    event = (payload and payload.event_type) or incident.get("event_type") or "bottleneck"
+    sev = (payload and payload.severity) or incident.get("severity") or 3
+    metrics = (payload and payload.metrics) or incident.get("metrics_json") or {}
+    image_b64 = payload.image_base64 if payload else None
+
+    debrief = await generate_tactical_debrief(
+        incident_id=incident_id,
+        camera_id=cam_id,
+        zone_name=zone,
+        event_type=event,
+        severity=sev,
+        metrics=metrics,
+        image_base64=image_b64,
+    )
+    return debrief
+
+@router.post("/ai-debrief")
+async def get_adhoc_debrief(payload: DebriefRequest):
+    from ..services.gemini_service import generate_tactical_debrief
+    return await generate_tactical_debrief(
+        incident_id="adhoc-preview",
+        camera_id=payload.camera_id or "cam-002",
+        zone_name=payload.zone_name or "Central Concourse",
+        event_type=payload.event_type or "bottleneck",
+        severity=payload.severity or 3,
+        metrics=payload.metrics or {},
+        image_base64=payload.image_base64,
+    )
+

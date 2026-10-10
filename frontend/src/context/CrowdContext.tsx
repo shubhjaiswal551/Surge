@@ -31,8 +31,10 @@ interface CrowdContextValue {
   isWsConnected: boolean;
   isDemoMode: boolean;
   acknowledgeAlert: (id: string) => void;
+  acknowledgeAllAlerts: () => void;
   resolveAlert: (id: string, notes: string, isFalsePositive: boolean) => void;
   refetchIncidents: () => Promise<void>;
+  triggerTestAlert: (custom?: Partial<Alert>) => void;
 }
 
 const CrowdContext = createContext<CrowdContextValue | undefined>(undefined);
@@ -44,6 +46,46 @@ const INITIAL_ZONE_AREAS: Record<string, number> = {
   'cam-004': 70.0,
 };
 
+const getInitialAlerts = (): Alert[] => [
+  {
+    id: 'alt-init-001',
+    cameraId: 'cam-003',
+    zoneName: 'Main Terminal Gate (Dense Scramble)',
+    type: 'Density Threshold Exceeded',
+    severity: 'high',
+    timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+    acknowledged: false,
+    snapshotUrl: '/12269404_2320_1080_30fps.mp4',
+    metrics: {
+      density: 3.7,
+      flow_vector: [0.1, 0.9],
+      velocity_variance: 2.8,
+      headcount: 185,
+      avg_speed: 0.9,
+      turbulence: 0.38,
+    },
+  },
+  {
+    id: 'alt-init-002',
+    cameraId: 'cam-002',
+    zoneName: 'Central Concourse (Multi-Directional)',
+    type: 'Bottleneck Forming',
+    severity: 'warning',
+    timestamp: new Date(Date.now() - 1000 * 60 * 14).toISOString(),
+    acknowledged: true,
+    acknowledgedBy: 'Control Room Operator',
+    snapshotUrl: '/concourse_crossing.webm',
+    metrics: {
+      density: 2.4,
+      flow_vector: [0.2, 0.0],
+      velocity_variance: 0.4,
+      headcount: 65,
+      avg_speed: 0.4,
+      turbulence: 0.25,
+    },
+  },
+];
+
 export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
   const [cameras, setCameras] = useState<CameraState[]>(() => {
@@ -53,7 +95,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }));
   });
   const [heatmaps, setHeatmaps] = useState<CameraHeatmap[]>(() => getInitialHeatmaps());
-  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>(() => getInitialAlerts());
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const lastAlertTimestampRef = useRef<Record<string, number>>({});
 
@@ -361,6 +403,53 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [alerts, profile]);
 
+  const acknowledgeAllAlerts = useCallback(() => {
+    setAlerts((prev) =>
+      prev.map((a) => ({
+        ...a,
+        acknowledged: true,
+        acknowledgedBy: profile?.displayName ?? 'Operator',
+      })),
+    );
+  }, [profile]);
+
+  const triggerTestAlert = useCallback(
+    (custom?: Partial<Alert>) => {
+      const now = Date.now();
+      const targetCamId = custom?.cameraId || 'cam-003';
+      const matchedCam = cameras.find((c) => c.cameraId === targetCamId);
+      const newAlert: Alert = {
+        id: `alt-${now.toString(36)}`,
+        cameraId: targetCamId,
+        zoneName: custom?.zoneName || matchedCam?.zoneName || 'Main Terminal Gate (Dense Scramble)',
+        type: custom?.type || 'Crowd Surge Detected',
+        severity: custom?.severity || 'high',
+        timestamp: new Date(now).toISOString(),
+        acknowledged: false,
+        snapshotUrl:
+          custom?.snapshotUrl ||
+          (targetCamId === 'cam-001'
+            ? '/corridor_chokepoint.webm'
+            : targetCamId === 'cam-002'
+            ? '/concourse_crossing.webm'
+            : targetCamId === 'cam-004'
+            ? '/5287069-sd_960_540_30fps.mp4'
+            : '/12269404_2320_1080_30fps.mp4'),
+        metrics: custom?.metrics || {
+          density: 4.1,
+          flow_vector: [0.8, -0.2],
+          velocity_variance: 3.9,
+          headcount: matchedCam?.headcount ? matchedCam.headcount + 15 : 195,
+          avg_speed: 1.8,
+          turbulence: 0.45,
+        },
+      };
+
+      setAlerts((prev) => [newAlert, ...prev].slice(0, 50));
+    },
+    [cameras],
+  );
+
   // Computed Derived Values
   const unacknowledgedAlertsCount = useMemo(
     () => alerts.filter((a) => !a.acknowledged).length,
@@ -390,8 +479,10 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isWsConnected,
       isDemoMode,
       acknowledgeAlert,
+      acknowledgeAllAlerts,
       resolveAlert,
       refetchIncidents,
+      triggerTestAlert,
     }),
     [
       cameras,
@@ -404,8 +495,10 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       isWsConnected,
       isDemoMode,
       acknowledgeAlert,
+      acknowledgeAllAlerts,
       resolveAlert,
       refetchIncidents,
+      triggerTestAlert,
     ],
   );
 

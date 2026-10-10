@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { CheckCircle2, Cpu } from 'lucide-react';
+import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, FileText } from 'lucide-react';
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
 
@@ -384,6 +384,56 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+
+  // Gemini Tactical AI Debrief state (Google Gemini 1.5 Flash Free Tier)
+  const [aiDebrief, setAiDebrief] = useState<{
+    summary: string;
+    root_cause: string;
+    threat_level: string;
+    stampede_risk_percent: number;
+    recommended_actions: string[];
+    operator_notes_draft: string;
+    source: string;
+    has_api_key?: boolean;
+  } | null>(null);
+  const [isDebriefLoading, setIsDebriefLoading] = useState(false);
+  const [debriefError, setDebriefError] = useState<string | null>(null);
+
+  const fetchAiDebrief = async () => {
+    if (!alert) return;
+    setIsDebriefLoading(true);
+    setDebriefError(null);
+    try {
+      const res = await fetch(`${API_BASE_URL}/incidents/${alert.id}/ai-debrief`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          camera_id: alert.cameraId,
+          zone_name: alert.zoneName,
+          event_type: alert.type,
+          severity: alert.numericSeverity || (alert.severity === 'critical' ? 5 : alert.severity === 'high' ? 4 : 3),
+          metrics: alert.metrics || {
+            density: 3.8,
+            headcount: 75,
+            velocity_variance: 2.5,
+          },
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      setAiDebrief(data);
+    } catch (err: any) {
+      setDebriefError(err.message || 'Failed to fetch AI debrief');
+    } finally {
+      setIsDebriefLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (alert) {
+      fetchAiDebrief();
+    }
+  }, [alert?.id]);
 
   // Video playback ref & state (no currentTime state at root to prevent video decoder starvation)
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -940,6 +990,142 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 <div className="text-[10px] text-amber-600 font-mono font-medium">~{epicenter.clusterSize} persons involved</div>
               </div>
             </div>
+          </div>
+
+          {/* Tactical AI Incident Debrief (Google Gemini Free Tier) */}
+          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-950/40 via-slate-900/70 to-slate-950 border border-indigo-500/30 text-xs text-slate-200 space-y-2.5 shadow-lg shadow-indigo-950/20">
+            <div className="flex items-center justify-between pb-2 border-b border-indigo-500/20">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-indigo-500/20 flex items-center justify-center text-indigo-400 border border-indigo-500/30">
+                  <Sparkles size={13} className="animate-pulse" />
+                </div>
+                <div>
+                  <div className="font-semibold text-white flex items-center gap-2">
+                    <span>Tactical AI Incident Debrief</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono border border-indigo-500/30">
+                      Gemini 1.5 Flash Free Tier
+                    </span>
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Multimodal situation triage & automated action protocol
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={fetchAiDebrief}
+                disabled={isDebriefLoading}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 text-[11px] font-medium transition disabled:opacity-50"
+              >
+                <RotateCw size={11} className={isDebriefLoading ? 'animate-spin' : ''} />
+                <span>{isDebriefLoading ? 'Analyzing...' : 'Re-analyze'}</span>
+              </button>
+            </div>
+
+            {isDebriefLoading && (
+              <div className="py-3 text-center space-y-1.5">
+                <div className="inline-flex items-center gap-2 text-indigo-400 text-xs font-mono">
+                  <RotateCw size={13} className="animate-spin" />
+                  <span>Synthesizing crowd vector kinetics & hazard risk...</span>
+                </div>
+                <div className="w-48 h-1 bg-slate-800 rounded-full mx-auto overflow-hidden">
+                  <div className="w-full h-full bg-indigo-500 animate-[pulse_1s_infinite]" />
+                </div>
+              </div>
+            )}
+
+            {debriefError && (
+              <div className="p-2.5 rounded-xl bg-rose-950/40 border border-rose-500/30 text-rose-300 text-[11px] flex items-center gap-2">
+                <AlertTriangle size={13} className="shrink-0" />
+                <span>{debriefError}</span>
+              </div>
+            )}
+
+            {aiDebrief && !isDebriefLoading && (
+              <div className="space-y-2.5">
+                {/* Situation Summary */}
+                <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-700/60 leading-relaxed text-slate-200 text-xs">
+                  <span className="font-semibold text-indigo-300">Operational Assessment: </span>
+                  {aiDebrief.summary}
+                </div>
+
+                {/* Threat & Stampede Risk Metrics */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                    <div className="text-[9px] text-slate-400 font-mono uppercase">Threat Level</div>
+                    <div className={`text-xs font-bold mt-0.5 ${
+                      aiDebrief.threat_level === 'CRITICAL' ? 'text-rose-400' :
+                      aiDebrief.threat_level === 'HIGH' ? 'text-amber-400' : 'text-blue-400'
+                    }`}>
+                      {aiDebrief.threat_level}
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                    <div className="text-[9px] text-slate-400 font-mono uppercase">Stampede Risk</div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-xs font-bold text-amber-300 font-mono">
+                        {aiDebrief.stampede_risk_percent}%
+                      </span>
+                      <div className="flex-1 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-amber-500 to-rose-500 rounded-full"
+                          style={{ width: `${aiDebrief.stampede_risk_percent}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                    <div className="text-[9px] text-slate-400 font-mono uppercase">Root Cause</div>
+                    <div className="text-[11px] font-medium text-slate-300 truncate mt-0.5" title={aiDebrief.root_cause}>
+                      {aiDebrief.root_cause}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recommended Actions Protocol */}
+                {aiDebrief.recommended_actions && aiDebrief.recommended_actions.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldAlert size={12} className="text-indigo-400" />
+                      <span>Recommended Action Protocol</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5">
+                      {aiDebrief.recommended_actions.map((act, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-start gap-2 p-2 rounded-xl bg-indigo-950/20 border border-indigo-500/20 text-slate-300 text-[11px]"
+                        >
+                          <span className="w-4 h-4 rounded-full bg-indigo-500/30 text-indigo-300 flex items-center justify-center font-mono text-[9px] shrink-0 mt-0.5">
+                            {idx + 1}
+                          </span>
+                          <span>{act}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Action Footer */}
+                <div className="flex items-center justify-between pt-1 text-[10px] text-slate-400 border-t border-slate-800/80">
+                  <span className="font-mono">Engine: {aiDebrief.source}</span>
+                  {aiDebrief.operator_notes_draft && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setResolutionNotes(aiDebrief.operator_notes_draft);
+                        setShowResolveForm(true);
+                      }}
+                      className="inline-flex items-center gap-1 text-indigo-400 hover:text-indigo-300 font-medium underline underline-offset-2 transition"
+                    >
+                      <FileText size={11} />
+                      <span>Auto-fill Resolution Notes</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Telemetry Details Grid */}

@@ -13,6 +13,7 @@ export interface MetricsData {
   velocity_variance: number;
   headcount: number;
   avg_speed: number;
+  turbulence?: number;
   heatmap?: number[][];
 }
 
