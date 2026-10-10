@@ -53,11 +53,18 @@ Incident Context:
 - Motion Velocity Variance: {velocity_variance}
 - Average Flow Speed: {avg_speed} m/s
 - Flow Direction Vector: {flow_vector}
+- Turbulence / Multi-Directional Conflict: High probability of counter-directional pedestrian streams or cross-flow shearing.
+
+Risk Assessment Rules:
+- Multi-directional / counter-directional intersections, rapid turbulence, or crossing trajectories pose severe stampede / collision crush risk (typically 65% - 85% stampede risk) due to opposing forces and lack of unified egress.
+- Kinetic surges or rapid radial dispersions pose critical stampede risk (70% - 90%).
+- Stationary bottlenecks in orderly lines pose low stampede risk (15% - 35%) but moderate spatial compression.
+- Normal uniform linear flow poses low risk (<25%).
 
 Provide your response in valid JSON matching this exact structure:
 {{
   "summary": "Concise 1-2 sentence operational description of what is happening in the crowd.",
-  "root_cause": "Primary physical trigger (e.g. counter-directional blockage, sudden obstruction, bottleneck compression).",
+  "root_cause": "Primary physical trigger (e.g. multi-directional cross-flow collision, counter-directional blockage, sudden panic dispersal).",
   "threat_level": "CRITICAL" | "HIGH" | "MODERATE" | "LOW",
   "stampede_risk_percent": number (0 to 100),
   "recommended_actions": [
@@ -129,13 +136,18 @@ def _generate_fallback_debrief(
     headcount: int,
     velocity_variance: float,
 ) -> Dict[str, Any]:
-    event_lower = event_type.lower()
-    is_surge = any(k in event_lower for k in ["surge", "dispersal", "panic", "rapid", "stampede"])
-    is_bottleneck = any(k in event_lower for k in ["bottleneck", "chokepoint", "compress", "obstruction"])
-    is_density = any(k in event_lower for k in ["density", "threshold", "headcount", "capacity"])
+    text_corpus = f"{event_type.lower()} {zone_name.lower()}"
+    is_multidirectional = any(k in text_corpus for k in ["multi-directional", "multidirectional", "cross", "turbulence", "concourse", "crossing"])
+    is_surge = any(k in text_corpus for k in ["surge", "dispersal", "panic", "rapid", "stampede"])
+    is_bottleneck = any(k in text_corpus for k in ["bottleneck", "chokepoint", "compress", "obstruction"])
+    is_density = any(k in text_corpus for k in ["density", "threshold", "headcount", "capacity"])
 
     # Scientifically weighted Stampede Risk Calculation
-    if is_surge:
+    if is_multidirectional:
+        # Multi-directional flows create severe kinetic collision shear and stampede/trample risk
+        base_risk = 52 + min(24, int(velocity_variance * 6.5)) + min(18, int(density * 8.0))
+        threat_level = "CRITICAL" if base_risk >= 75 else "HIGH" if base_risk >= 55 else "MODERATE"
+    elif is_surge:
         # Kinetic dispersion and high velocity variance drive stampede risk
         base_risk = 35 + min(35, int(velocity_variance * 7.5)) + min(20, int(density * 4.0))
         threat_level = "CRITICAL" if base_risk >= 75 else "HIGH" if base_risk >= 50 else "MODERATE"
@@ -151,9 +163,18 @@ def _generate_fallback_debrief(
         base_risk = 10 + min(25, int(density * 5.0)) + min(15, int(velocity_variance * 3.0))
         threat_level = "MODERATE" if severity >= 3 else "LOW"
 
-    stampede_risk = max(10, min(88, base_risk))
+    stampede_risk = max(10, min(92, base_risk))
 
-    if is_surge:
+    if is_multidirectional:
+        summary = f"Multi-directional pedestrian cross-flow identified at {zone_name}. Opposing trajectory vectors and intersecting foot traffic create high collision turbulence and elevated stampede hazard."
+        root_cause = "Intersecting pedestrian streams without directional lane separation, producing kinetic shear."
+        actions = [
+            "Deploy stanchions or portable barriers to establish one-way pedestrian lanes.",
+            "Position ground marshals at crossing nodes to guide intersecting pedestrian streams.",
+            "Activate directional overhead audio advisories to prevent cross-traffic deadlock."
+        ]
+        notes = f"Cross-flow intervention: Directional partitioning deployed at {zone_name}. Opposing streams separated into distinct channels. Collision hazard mitigated."
+    elif is_surge:
         summary = f"Sudden directional surge detected at {zone_name}. Elevated kinetic dispersion indicates localized crowd displacement or evasive movement."
         root_cause = "Rapid kinetic divergence; pedestrians scattering from focal chokepoint."
         actions = [

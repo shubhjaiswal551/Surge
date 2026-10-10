@@ -473,15 +473,33 @@ const CameraFeeds: React.FC = () => {
       return;
     }
 
+    const area = getCameraArea(camera.cameraId);
+    const calculatedDensityNum = parseFloat(((camera.headcount || 1) / area).toFixed(2));
+    const isCritical = camera.density === 'critical';
+    const isHigh = camera.density === 'high';
     const onDemandAlert: Alert = {
       id: `forensic-${camera.cameraId}-${Date.now().toString(36)}`,
       cameraId: camera.cameraId,
       zoneName: camera.zoneName,
-      type: 'Live Surveillance Forensic Inspection',
-      severity: camera.density === 'critical' ? 'critical' : camera.density === 'high' ? 'high' : 'info',
+      type: camera.zoneName.includes('Multi-Directional')
+        ? 'Multi-Directional Cross-Flow Turbulence'
+        : camera.zoneName.includes('Chokepoint')
+        ? 'Critical Funnel Chokepoint Bottleneck'
+        : camera.zoneName.includes('Dense Scramble')
+        ? 'High-Density Surge Compression'
+        : 'Live Surveillance Forensic Inspection',
+      severity: isCritical ? 'critical' : isHigh ? 'high' : 'warning',
+      numericSeverity: isCritical ? 5 : isHigh ? 4 : 3,
       timestamp: new Date().toISOString(),
       acknowledged: false,
       snapshotUrl: cleanVideoUrl(camera.rtspUrl, camera.cameraId),
+      metrics: {
+        density: calculatedDensityNum,
+        headcount: camera.headcount,
+        velocity_variance: camera.zoneName.includes('Multi-Directional') ? 3.8 : 2.2,
+        avg_speed: 1.4,
+        flow_vector: [0.5, 0.5],
+      },
     };
     setSelectedAlertForModal(onDemandAlert);
   };
