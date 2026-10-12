@@ -50,6 +50,8 @@ class StreamWorker:
         self.anomaly_counter: Dict[str, int] = {}
         self.last_incident_time: Dict[str, float] = {}
         self.telemetry_history: Dict[str, deque] = {}
+        self.prev_grays: Dict[str, np.ndarray] = {}
+        self.optical_flow_metrics: Dict[str, dict] = {}
 
     def get_telemetry_history(self, camera_id: str, window_seconds: int = 900) -> List[dict]:
         history = self.telemetry_history.get(camera_id)
@@ -449,18 +451,77 @@ class StreamWorker:
                         if not self.track_history[tid]:
                             del self.track_history[tid]
 
+                # Winner #1: Local Dense Optical Flow (OpenCV Farneback)
+                # Calculates physical crowd velocity field, spatial divergence (panic/stampede), and velocity arrest (crush)
+                gray_frame = cv2.cvtColor(frame_resized, cv2.COLOR_BGR2GRAY)
+                prev_gray = self.prev_grays.get(cam_key)
+                of_flow_vec = (0.0, 0.0)
+                of_speed = 0.0
+                of_divergence = 0.0
+                of_variance = 0.0
+
+                if prev_gray is not None and prev_gray.shape == gray_frame.shape:
+                    # High-efficiency Farneback dense optical flow (pyramid scale 0.5, 3 levels)
+                    flow_field = cv2.calcOpticalFlowFarneback(
+                        prev_gray,
+                        gray_frame,
+                        None,
+                        pyr_scale=0.5,
+                        levels=3,
+                        winsize=15,
+                        iterations=3,
+                        poly_n=5,
+                        poly_sigma=1.2,
+                        flags=0,
+                    )
+
+                    # Extract motion vectors within active pedestrian bounding boxes or zone
+                    fx = flow_field[..., 0]
+                    fy = flow_field[..., 1]
+                    mag, ang = cv2.cartToPolar(fx, fy)
+
+                    # Filter out static background noise (movement threshold > 0.4px)
+                    motion_mask = mag > 0.4
+                    if np.any(motion_mask):
+                        active_fx = fx[motion_mask]
+                        active_fy = fy[motion_mask]
+                        active_mag = mag[motion_mask]
+
+                        of_flow_vec = (round(float(np.mean(active_fx)), 2), round(float(np.mean(active_fy)), 2))
+                        of_speed = round(float(np.mean(active_mag)), 2)
+                        of_variance = round(float(np.var(active_mag)), 2)
+
+                        # Optical divergence: derivative sum of d(fx)/dx + d(fy)/dy
+                        # Sudden positive spike indicates centrifugal panic/stampede dispersal
+                        dfx_dx = cv2.Sobel(fx, cv2.CV_32F, 1, 0, ksize=3)
+                        dfy_dy = cv2.Sobel(fy, cv2.CV_32F, 0, 1, ksize=3)
+                        divergence_field = dfx_dx + dfy_dy
+                        of_divergence = round(float(np.mean(divergence_field[motion_mask])), 3)
+
+                self.prev_grays[cam_key] = gray_frame
+                self.optical_flow_metrics[cam_key] = {
+                    "flow_vector": of_flow_vec,
+                    "avg_speed": of_speed,
+                    "variance": of_variance,
+                    "divergence": of_divergence,
+                }
+
                 density_val = compute_density(headcount, area_sq_m=stream["area_sq_m"])
-                flow_vec = compute_flow_vector(velocities)
-                vel_variance = compute_velocity_variance(velocities)
+                flow_vec = compute_flow_vector(velocities) if velocities else of_flow_vec
+                vel_variance = compute_velocity_variance(velocities) if len(velocities) >= 2 else of_variance
                 turbulence = compute_flow_turbulence(velocities)
                 heatmap = compute_spatial_heatmap(bboxes, rw, rh, grid_size=5)
 
                 speeds = [math.sqrt(v[0]**2 + v[1]**2) for v in velocities]
-                avg_speed = round(float(np.mean(speeds)), 2) if speeds else 0.0
+                avg_speed = round(float(np.mean(speeds)), 2) if speeds else of_speed
 
                 # Per-Zone Custom Sensitivity Thresholds (Improvement #4)
                 zone_cfg = ZONES_DB.get(stream["zone_id"], {})
                 zone_thresholds = zone_cfg.get("thresholds")
+
+                # If optical divergence spikes (> 0.25) or optical variance is elevated, factor into surge/dispersal
+                if of_divergence > 0.25:
+                    vel_variance = max(vel_variance, 4.2)
 
                 is_anomaly, event_type, severity = detect_anomaly(
                     density=density_val,
@@ -578,6 +639,12 @@ class StreamWorker:
                         "zone_headcount": headcount,
                         "total_fov_headcount": raw_fov_count,
                         "avg_speed": avg_speed,
+                        "optical_flow": {
+                            "speed": of_speed,
+                            "divergence": of_divergence,
+                            "variance": of_variance,
+                            "vector": list(of_flow_vec),
+                        },
                         "heatmap": heatmap,
                     },
                     "snapshot_url": f"/{stream['default_path'].split('/')[-1]}",

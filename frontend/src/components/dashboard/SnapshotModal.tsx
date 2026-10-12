@@ -124,11 +124,13 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             const aiBoxes: any[] = [];
             const kf0Boxes = kf0.boxes || [];
             const kf1Boxes = kf1.boxes || [];
+            const processedIds = new Set<number>();
 
+            // 1. Interpolate continuous tracks visible in both keyframes
             kf0Boxes.forEach((b0: any) => {
+              processedIds.add(b0.id);
               const b1 = kf1Boxes.find((b: any) => b.id === b0.id);
               if (b1) {
-                // Smooth interpolation between ground-truth keyframe positions
                 aiBoxes.push({
                   x: b0.x + (b1.x - b0.x) * factor,
                   y: b0.y + (b1.y - b0.y) * factor,
@@ -138,14 +140,29 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
                   isPrimary: false,
                   isAnomaly: true,
                 });
-              } else if (factor <= 0.3) {
-                // Lifespan ended: cleanly vanish
+              } else {
+                // Smooth fade for tracks about to leave
                 aiBoxes.push({
                   x: b0.x,
                   y: b0.y,
                   w: b0.w,
                   h: b0.h,
                   label: b0.label.includes('%') ? b0.label : `${b0.label} · ${b0.conf}%`,
+                  isPrimary: false,
+                  isAnomaly: true,
+                });
+              }
+            });
+
+            // 2. Also include freshly entering tracks in kf1 so emerging crowd members are not dropped
+            kf1Boxes.forEach((b1: any) => {
+              if (!processedIds.has(b1.id)) {
+                aiBoxes.push({
+                  x: b1.x,
+                  y: b1.y,
+                  w: b1.w,
+                  h: b1.h,
+                  label: b1.label.includes('%') ? b1.label : `${b1.label} · ${b1.conf}%`,
                   isPrimary: false,
                   isAnomaly: true,
                 });

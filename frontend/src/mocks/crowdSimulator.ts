@@ -67,9 +67,9 @@ function densityFromCameraHeadcount(cameraId: string, hc: number): DensityLevel 
     return 'critical';
   }
   if (cameraId === 'cam-002') {
-    if (hc < 8) return 'low';
-    if (hc < 15) return 'moderate';
-    if (hc < 25) return 'high';
+    if (hc < 40) return 'low';
+    if (hc < 65) return 'moderate';
+    if (hc < 80) return 'high';
     return 'critical';
   }
   // cam-004 default
@@ -120,7 +120,7 @@ interface SimulatorState {
 }
 
 const state: SimulatorState = {
-  headcounts: { 'cam-001': 22, 'cam-002': 8, 'cam-003': 185, 'cam-004': 20 },
+  headcounts: { 'cam-001': 22, 'cam-002': 68, 'cam-003': 185, 'cam-004': 20 },
   flows: { 'cam-001': 85, 'cam-002': 260, 'cam-003': 110, 'cam-004': 195 },
   nextAnomalyAt: Date.now() + 20_000 + Math.random() * 20_000,
   activeAnomalyCamera: null,
@@ -156,8 +156,8 @@ function tick() {
       minCount = 16;
       maxCount = 28;
     } else if (cid === 'cam-002') {
-      minCount = 3;
-      maxCount = 14;
+      minCount = 55;
+      maxCount = 85;
     } else if (cid === 'cam-003') {
       minCount = 165;
       maxCount = 215;
