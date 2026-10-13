@@ -43,8 +43,10 @@ runs/
 ml/detection/runs/
 ml/data/
 ml/data_crowdhuman/
+ml/datasets/
 crowdhuman-1/
 ml/detection/overnight_train.log
+ml/detection/master_train.log
 *.db
 backend/snapshots/*
 !backend/snapshots/.gitkeep
