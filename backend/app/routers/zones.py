@@ -16,7 +16,7 @@ ZONES_DB: Dict[str, Dict] = {
         "id": "zone-001",
         "camera_id": "cam-001",
         "name": "North Transit Corridor (Chokepoint)",
-        "polygon_coords": [(50.0, 50.0), (900.0, 50.0), (900.0, 500.0), (50.0, 500.0)],
+        "polygon_coords": [(4.0, 15.0), (96.0, 15.0), (96.0, 96.0), (4.0, 96.0)],
         "area_sq_m": 45.0,
         "thresholds": {
             "density_high": 2.5,
@@ -29,7 +29,7 @@ ZONES_DB: Dict[str, Dict] = {
         "id": "zone-002",
         "camera_id": "cam-002",
         "name": "Central Concourse (Multi-Directional)",
-        "polygon_coords": [(30.0, 30.0), (800.0, 30.0), (800.0, 480.0), (30.0, 480.0)],
+        "polygon_coords": [(4.0, 10.0), (96.0, 10.0), (96.0, 96.0), (4.0, 96.0)],
         "area_sq_m": 60.0,
         "thresholds": {
             "density_high": 2.5,
@@ -42,7 +42,7 @@ ZONES_DB: Dict[str, Dict] = {
         "id": "zone-003",
         "camera_id": "cam-003",
         "name": "Main Terminal Gate (Dense Scramble)",
-        "polygon_coords": [(50.0, 50.0), (900.0, 50.0), (900.0, 500.0), (50.0, 500.0)],
+        "polygon_coords": [(4.0, 10.0), (96.0, 10.0), (96.0, 96.0), (4.0, 96.0)],
         "area_sq_m": 50.0,
         "thresholds": {
             "density_high": 3.0,
@@ -55,7 +55,7 @@ ZONES_DB: Dict[str, Dict] = {
         "id": "zone-004",
         "camera_id": "cam-004",
         "name": "Central Plaza Courtyard",
-        "polygon_coords": [(30.0, 30.0), (800.0, 30.0), (800.0, 480.0), (30.0, 480.0)],
+        "polygon_coords": [(4.0, 10.0), (96.0, 10.0), (96.0, 96.0), (4.0, 96.0)],
         "area_sq_m": 70.0,
         "thresholds": {
             "density_high": 2.8,

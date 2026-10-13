@@ -248,8 +248,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
   const defaultPolygon = useMemo<[number, number][]>(() => {
     return isCam1
-      ? [[80, 70], [880, 70], [860, 480], [100, 480]]
-      : [[60, 60], [900, 60], [860, 480], [80, 480]];
+      ? [[4, 15], [96, 15], [96, 96], [4, 96]]
+      : [[4, 10], [96, 10], [96, 96], [4, 96]];
   }, [isCam1]);
 
   const effectivePolygon = (polygonCoords && polygonCoords.length >= 3) ? polygonCoords : defaultPolygon;
@@ -600,22 +600,22 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             // 4. Draw Calibrated Detection Zone Polygon (if enabled)
             if (showZone && effectivePolygon && effectivePolygon.length >= 3) {
               ctx.save();
+              const isPercent = effectivePolygon.every((pt) => pt[0] <= 100 && pt[1] <= 100);
+              const toCanvasX = (x: number) => (isPercent ? (x / 100) : (x / 960)) * rect.width;
+              const toCanvasY = (y: number) => (isPercent ? (y / 100) : (y / 540)) * rect.height;
+              const toNormX = (x: number) => (isPercent ? x : (x / 960) * 100);
+              const toNormY = (y: number) => (isPercent ? y : (y / 540) * 100);
+
               ctx.beginPath();
-              const firstPt = effectivePolygon[0];
-              const fx = firstPt[0] <= 100 ? (firstPt[0] / 100) * rect.width : (firstPt[0] / 960) * rect.width;
-              const fy = firstPt[1] <= 100 ? (firstPt[1] / 100) * rect.height : (firstPt[1] / 540) * rect.height;
-              ctx.moveTo(fx, fy);
+              ctx.moveTo(toCanvasX(effectivePolygon[0][0]), toCanvasY(effectivePolygon[0][1]));
               for (let i = 1; i < effectivePolygon.length; i++) {
-                const pt = effectivePolygon[i];
-                const px = pt[0] <= 100 ? (pt[0] / 100) * rect.width : (pt[0] / 960) * rect.width;
-                const py = pt[1] <= 100 ? (pt[1] / 100) * rect.height : (pt[1] / 540) * rect.height;
-                ctx.lineTo(px, py);
+                ctx.lineTo(toCanvasX(effectivePolygon[i][0]), toCanvasY(effectivePolygon[i][1]));
               }
               ctx.closePath();
 
               const normPoly: [number, number][] = effectivePolygon.map((pt) => [
-                pt[0] <= 100 ? pt[0] : (pt[0] / 960) * 100,
-                pt[1] <= 100 ? pt[1] : (pt[1] / 540) * 100,
+                toNormX(pt[0]),
+                toNormY(pt[1]),
               ]);
 
               let insideZoneCount = 0;
@@ -676,8 +676,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
               // Anchor corner node points
               for (const pt of effectivePolygon) {
-                const px = pt[0] <= 100 ? (pt[0] / 100) * rect.width : (pt[0] / 960) * rect.width;
-                const py = pt[1] <= 100 ? (pt[1] / 100) * rect.height : (pt[1] / 540) * rect.height;
+                const px = toCanvasX(pt[0]);
+                const py = toCanvasY(pt[1]);
                 ctx.beginPath();
                 ctx.arc(px, py, 3.5, 0, Math.PI * 2);
                 ctx.fillStyle = '#ffffff';
@@ -688,6 +688,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               }
 
               // Zone label tag
+              const fx = toCanvasX(effectivePolygon[0][0]);
+              const fy = toCanvasY(effectivePolygon[0][1]);
               ctx.font = '600 9px monospace';
               const zoneTag = `${zoneName.toUpperCase()} · ${densityPerSqM} P/m² · ${displayCount} PAX`;
               const tagW = ctx.measureText(zoneTag).width + 14;
