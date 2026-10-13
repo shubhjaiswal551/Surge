@@ -1,47 +1,109 @@
 """
-Generate High-Density AI Telemetry for concourse_crossing.webm
-- Uses fine-tuned YOLOv8s crowd weights + crowd-tuned ByteTrack
-- Optimized for dense crossing crowds:
-  1. imgsz=960 (2.25x pixel resolution for distant midground pedestrians)
-  2. conf=0.18 (captures occluded pedestrians in dense pack)
-  3. iou=0.65 (soft NMS preserves overlapping human bodies in tight groups)
-  4. min_hits=4 (keeps pedestrians visible between occlusions)
-  5. Clean genuine detections only - zero phantom sliding boxes
+SafeCrowd - High-Density AI Telemetry Generator
+Generates persistent, presentation-ready crowd tracking timelines for camera video feeds
+using the fine-tuned master elevated YOLOv8s model + velocity-extrapolating ByteTrack.
 """
 
 import os
 import json
 from pathlib import Path
+from typing import Dict, List, Any
 import cv2
 import numpy as np
 from ultralytics import YOLO
 
-def main():
-    video_path = Path("frontend/public/concourse_crossing.webm")
-    weights_path = Path("ml/detection/weights/best.pt")
-    tracker_cfg = Path("ml/tracking/crowd_bytetrack.yaml")
-    output_public = Path("frontend/public/telemetry_concourse.json")
-    output_dist = Path("frontend/dist/telemetry_concourse.json")
+class PersistentTrackBuffer:
+    def __init__(self, max_lost: int = 25):
+        self.tracks: Dict[int, Dict[str, Any]] = {}
+        self.max_lost = max_lost
 
-    print(f"Loading YOLOv8 crowd model from {weights_path}...")
-    model = YOLO(str(weights_path))
+    def update(self, detected_boxes: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        current_ids = set()
+        for d in detected_boxes:
+            tid = d["id"]
+            current_ids.add(tid)
+            bx, by, bw, bh = d["x"], d["y"], d["w"], d["h"]
+
+            if tid in self.tracks:
+                old_box = self.tracks[tid]["box"]
+                old_vel = self.tracks[tid]["vel"]
+                vx = bx - old_box[0]
+                vy = by - old_box[1]
+                smoothed_vx = 0.65 * vx + 0.35 * old_vel[0]
+                smoothed_vy = 0.65 * vy + 0.35 * old_vel[1]
+                self.tracks[tid] = {
+                    "box": [bx, by, bw, bh],
+                    "vel": (smoothed_vx, smoothed_vy),
+                    "conf": d["conf"],
+                    "cls": d.get("cls", 0),
+                    "lost": 0,
+                }
+            else:
+                self.tracks[tid] = {
+                    "box": [bx, by, bw, bh],
+                    "vel": (0.0, 0.0),
+                    "conf": d["conf"],
+                    "cls": d.get("cls", 0),
+                    "lost": 0,
+                }
+
+        for tid in list(self.tracks.keys()):
+            if tid not in current_ids:
+                self.tracks[tid]["lost"] += 1
+                if self.tracks[tid]["lost"] > self.max_lost:
+                    del self.tracks[tid]
+                else:
+                    b = self.tracks[tid]["box"]
+                    vx, vy = self.tracks[tid]["vel"]
+                    b[0] += vx * 0.8
+                    b[1] += vy * 0.8
+
+        active = []
+        for tid, data in self.tracks.items():
+            active.append({
+                "id": tid,
+                "label": f"#{tid:02d}",
+                "x": round(data["box"][0], 2),
+                "y": round(data["box"][1], 2),
+                "w": round(data["box"][2], 2),
+                "h": round(data["box"][3], 2),
+                "conf": data["conf"],
+                "cls": data["cls"],
+                "isAnomaly": False,
+            })
+        return active
+
+def process_video(
+    video_path: Path,
+    out_filename: str,
+    camera_id: str,
+    model: YOLO,
+    tracker_cfg: Path,
+):
+    print(f"\n==================================================")
+    print(f"Processing {video_path.name} -> {out_filename}")
+    print(f"==================================================")
+
+    if not video_path.exists():
+        print(f"Warning: {video_path} does not exist. Skipping.")
+        return
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        raise FileNotFoundError(f"Could not open video at {video_path}")
+        print(f"Error: Could not open {video_path}. Skipping.")
+        return
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
     frame_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
     frame_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    target_duration = round(total_frames / fps, 2)
+    duration = round(total_frames / fps, 2)
 
-    print(f"Video {frame_w}x{frame_h} @ {fps} FPS. Total frames: {total_frames} ({target_duration}s)")
-    print(f"High-Density Inference: imgsz=960, conf=0.18, iou=0.65 with {tracker_cfg}...")
+    print(f"Video {frame_w}x{frame_h} @ {fps:.1f} FPS | Total frames: {total_frames} ({duration}s)")
 
-    raw_frame_detections = []
-    track_hit_counts = {}
-    track_first_seen = {}
+    buffer = PersistentTrackBuffer(max_lost=5)
+    timeline = []
+    sample_interval = 2 # 12.5 FPS keyframes for silky smooth canvas rendering
 
     frame_idx = 0
     while frame_idx < total_frames:
@@ -49,109 +111,105 @@ def main():
         if not ret:
             break
 
-        # High-resolution crowd inference
+        # Run model tracking with master model on pedestrians
         results = model.track(
             source=frame,
             conf=0.18,
-            iou=0.65,
+            iou=0.60,
             imgsz=960,
+            max_det=1000,
+            classes=[0],
             persist=True,
             tracker=str(tracker_cfg),
             device=0,
             verbose=False,
         )[0]
 
-        frame_boxes = []
-        if results.boxes is not None and len(results.boxes) > 0 and results.boxes.id is not None:
-            boxes_xyxy = results.boxes.xyxy.cpu().numpy()
-            track_ids = results.boxes.id.int().cpu().numpy().tolist()
+        detected_boxes = []
+        if results.boxes is not None and results.boxes.id is not None and len(results.boxes) > 0:
+            coords = results.boxes.xyxy.cpu().numpy()
+            tids = results.boxes.id.int().cpu().numpy().tolist()
             confs = results.boxes.conf.cpu().numpy().tolist()
+            classes = results.boxes.cls.int().cpu().numpy().tolist() if results.boxes.cls is not None else [0] * len(tids)
 
-            for box, tid, conf in zip(boxes_xyxy, track_ids, confs):
+            for box, tid, conf, cls_id in zip(coords, tids, confs, classes):
                 x1, y1, x2, y2 = [float(v) for v in box]
-                raw_id = int(tid)
-                frame_boxes.append({
-                    "raw_id": raw_id,
-                    "x1": x1,
-                    "y1": y1,
-                    "x2": x2,
-                    "y2": y2,
-                    "conf": int(round(float(conf) * 100)),
-                })
-                track_hit_counts[raw_id] = track_hit_counts.get(raw_id, 0) + 1
-                if raw_id not in track_first_seen:
-                    track_first_seen[raw_id] = frame_idx
+                bx = (x1 / frame_w) * 100.0
+                by = (y1 / frame_h) * 100.0
+                bw = ((x2 - x1) / frame_w) * 100.0
+                bh = ((y2 - y1) / frame_h) * 100.0
 
-        raw_frame_detections.append(frame_boxes)
-        if frame_idx % 100 == 0:
-            print(f"Tracking frame {frame_idx}/{total_frames} ({round(frame_idx/fps, 1)}s) - {len(frame_boxes)} people detected")
-        frame_idx += 1
-
-    cap.release()
-
-    # Retain tracks with at least 4 hits (preserves occluded pedestrians while discarding single-frame blips)
-    min_hits = 4
-    valid_ids = {tid for tid, count in track_hit_counts.items() if count >= min_hits}
-    print(f"Total raw tracks: {len(track_hit_counts)} -> Retained valid crowd members (hits >= {min_hits}): {len(valid_ids)}")
-
-    # Clean sequential IDs by appearance order
-    sorted_ids = sorted(list(valid_ids), key=lambda tid: track_first_seen[tid])
-    clean_id_map = {tid: idx for idx, tid in enumerate(sorted_ids, start=1)}
-
-    sample_interval = 4
-    timeline = []
-
-    for f_idx in range(0, total_frames, sample_interval):
-        current_time = round(f_idx / fps, 2)
-        frame_boxes = []
-
-        if f_idx < len(raw_frame_detections):
-            for b in raw_frame_detections[f_idx]:
-                raw_id = b["raw_id"]
-                if raw_id not in clean_id_map:
-                    continue
-
-                clean_id = clean_id_map[raw_id]
-                x1, y1, x2, y2 = b["x1"], b["y1"], b["x2"], b["y2"]
-
-                bx = float(round((x1 / frame_w) * 100, 2))
-                by = float(round((y1 / frame_h) * 100, 2))
-                bw = float(round(((x2 - x1) / frame_w) * 100, 2))
-                bh = float(round(((y2 - y1) / frame_h) * 100, 2))
-
-                frame_boxes.append({
-                    "id": clean_id,
-                    "label": f"#{clean_id:02d}",
+                detected_boxes.append({
+                    "id": int(tid),
                     "x": bx,
                     "y": by,
                     "w": bw,
                     "h": bh,
-                    "conf": b["conf"],
-                    "isAnomaly": False,
+                    "conf": int(round(float(conf) * 100)),
+                    "cls": int(cls_id),
                 })
 
-        timeline.append({
-            "time": current_time,
-            "boxes": frame_boxes,
-        })
+        # Update persistent track buffer
+        active_boxes = buffer.update(detected_boxes)
 
-    telemetry_payload = {
-        "cameraId": "cam-002",
-        "duration": target_duration,
+        if frame_idx % sample_interval == 0:
+            timeline.append({
+                "time": round(frame_idx / fps, 2),
+                "boxes": active_boxes,
+            })
+
+        if frame_idx % 100 == 0:
+            print(f"  Frame {frame_idx:04d}/{total_frames} ({frame_idx/fps:.1f}s): {len(active_boxes)} persistent active tracks")
+
+        frame_idx += 1
+
+    cap.release()
+
+    payload = {
+        "cameraId": camera_id,
+        "duration": duration,
         "timeline": timeline,
     }
 
-    print(f"Writing {len(timeline)} keyframes to {output_public}...")
-    output_public.parent.mkdir(parents=True, exist_ok=True)
-    with open(output_public, "w", encoding="utf-8") as f:
-        json.dump(telemetry_payload, f, separators=(",", ":"))
+    out_pub = Path("frontend/public") / out_filename
+    out_dist = Path("frontend/dist") / out_filename
 
-    if output_dist.parent.exists():
-        print(f"Syncing to {output_dist}...")
-        with open(output_dist, "w", encoding="utf-8") as f:
-            json.dump(telemetry_payload, f, separators=(",", ":"))
+    out_pub.parent.mkdir(parents=True, exist_ok=True)
+    with open(out_pub, "w", encoding="utf-8") as f:
+        json.dump(payload, f, separators=(",", ":"))
+    print(f"Saved {len(timeline)} keyframes to {out_pub}")
 
-    print("High-density crowd telemetry generated successfully!")
+    if out_dist.parent.exists():
+        with open(out_dist, "w", encoding="utf-8") as f:
+            json.dump(payload, f, separators=(",", ":"))
+        print(f"Synced to {out_dist}")
+
+def main():
+    weights_path = Path("ml/detection/weights/best.pt")
+    tracker_cfg = Path("ml/tracking/crowd_bytetrack.yaml")
+
+    print(f"Loading master YOLOv8s crowd model from {weights_path}...")
+    model = YOLO(str(weights_path))
+
+    # Process Concourse Crossing
+    process_video(
+        video_path=Path("frontend/public/concourse_crossing.webm"),
+        out_filename="telemetry_concourse.json",
+        camera_id="cam-002",
+        model=model,
+        tracker_cfg=tracker_cfg,
+    )
+
+    # Process Corridor Chokepoint
+    process_video(
+        video_path=Path("frontend/public/corridor_chokepoint.webm"),
+        out_filename="telemetry_corridor.json",
+        camera_id="cam-001",
+        model=model,
+        tracker_cfg=tracker_cfg,
+    )
+
+    print("\n[SUCCESS] Presentation-ready high-density telemetry generated for all feeds!")
 
 if __name__ == "__main__":
     main()

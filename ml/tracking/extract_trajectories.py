@@ -39,8 +39,9 @@ def extract_trajectories(
     coords = boxes.xyxy.cpu().numpy()
     track_ids = boxes.id.int().cpu().numpy().tolist()
     confs = boxes.conf.cpu().numpy().tolist() if boxes.conf is not None else [1.0] * len(track_ids)
+    classes = boxes.cls.int().cpu().numpy().tolist() if boxes.cls is not None else [0] * len(track_ids)
 
-    for box, tid, conf in zip(coords, track_ids, confs):
+    for box, tid, conf, cls_id in zip(coords, track_ids, confs, classes):
         x1, y1, x2, y2 = [float(v) for v in box]
         cx = (x1 + x2) / 2.0
         cy = (y1 + y2) / 2.0
@@ -55,6 +56,7 @@ def extract_trajectories(
             "center": (cx, cy),
             "size": (w, h),
             "confidence": round(float(conf), 4),
+            "cls": int(cls_id),
         })
 
     return trajectories

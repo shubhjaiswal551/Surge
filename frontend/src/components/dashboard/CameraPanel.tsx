@@ -20,6 +20,17 @@ interface CameraPanelProps {
   areaSqM?: number;
   isDark?: boolean;
   isMasterPlaying?: boolean;
+  liveBoxes?: Array<{
+    id: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    conf: number;
+    label: string;
+    cls?: number;
+    isAnomaly?: boolean;
+  }>;
   onHeadcountChange?: (count: number) => void;
   onCalibrateZone?: () => void;
   onInspectAnomaly?: () => void;
@@ -153,12 +164,17 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   areaSqM,
   isDark = false,
   isMasterPlaying,
+  liveBoxes,
   onCalibrateZone,
   onInspectAnomaly,
   onFlagIncident,
 }) => {
   const isCam1 = cameraId === 'cam-001';
   const [videoError, setVideoError] = useState(false);
+  const liveBoxesRef = useRef(liveBoxes);
+  useEffect(() => {
+    liveBoxesRef.current = liveBoxes;
+  }, [liveBoxes]);
 
   const effectiveVideoSrc = useMemo(() => {
     if (videoError || !videoSrc) return '';
@@ -414,7 +430,17 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               isAnomaly?: boolean;
             }> = [];
 
-            if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+            const activeLiveBoxes = liveBoxesRef.current;
+            if (activeLiveBoxes && activeLiveBoxes.length > 0) {
+              currentBoxes = activeLiveBoxes.map((b) => ({
+                x: b.x,
+                y: b.y,
+                w: b.w,
+                h: b.h,
+                label: b.label || `#${b.id}`,
+                isAnomaly: !!b.isAnomaly,
+              }));
+            } else if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
               const timeline = telemetry.timeline;
               const loopDuration = telemetry.duration || timeline[timeline.length - 1].time || 15.12;
               const effectiveTime = loopDuration > 0 ? (t % loopDuration) : t;
@@ -438,9 +464,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                   const dy = b1.y - b0.y;
                   const displacement = Math.hypot(dx, dy);
 
-                  // Pedestrian in 0.16s only moves ~0.2m (< 1.8% screen).
-                  // If displacement > 2.2%, DO NOT slide across open space!
-                  if (displacement <= 2.2) {
+                  if (displacement <= 3.5) {
                     interpolated.push({
                       x: b0.x + dx * factor,
                       y: b0.y + dy * factor,
@@ -461,23 +485,21 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                     });
                   }
                 } else {
-                  // b0 disappeared in kf1 (person exited/occluded): cleanly vanish, don't slide
-                  if (factor < 0.5) {
-                    interpolated.push({
-                      x: b0.x,
-                      y: b0.y,
-                      w: b0.w,
-                      h: b0.h,
-                      label: `${b0.label} · ${b0.conf}%`,
-                      isAnomaly: !!b0.isAnomaly,
-                    });
-                  }
+                  // Keep b0 persisting gracefully across the keyframe - zero 80ms disappearance flicker
+                  interpolated.push({
+                    x: b0.x,
+                    y: b0.y,
+                    w: b0.w,
+                    h: b0.h,
+                    label: `${b0.label} · ${b0.conf}%`,
+                    isAnomaly: !!b0.isAnomaly,
+                  });
                 }
               }
 
-              // Any newly appeared person in kf1: appear at their location
+              // Any newly appeared person in kf1: maintain smoothly
               for (const b1 of kf1.boxes || []) {
-                if (!matchedIds.has(b1.id) && factor >= 0.5) {
+                if (!matchedIds.has(b1.id)) {
                   interpolated.push({
                     x: b1.x,
                     y: b1.y,
@@ -599,14 +621,23 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               let insideZoneCount = 0;
               for (const b of currentBoxes) {
                 const cx = b.x + b.w / 2;
-                const cy = b.y + b.h * 0.85;
+                const cyCenter = b.y + b.h * 0.5;
+                const cyBottom = b.y + b.h * 0.85;
+
                 let inside = false;
-                for (let i = 0, j = normPoly.length - 1; i < normPoly.length; j = i++) {
-                  const xi = normPoly[i][0], yi = normPoly[i][1];
-                  const xj = normPoly[j][0], yj = normPoly[j][1];
-                  const intersect = ((yi > cy) !== (yj > cy)) &&
-                    (cx < ((xj - xi) * (cy - yi)) / (yj - yi) + xi);
-                  if (intersect) inside = !inside;
+                for (const testCy of [cyCenter, cyBottom]) {
+                  let subInside = false;
+                  for (let i = 0, j = normPoly.length - 1; i < normPoly.length; j = i++) {
+                    const xi = normPoly[i][0], yi = normPoly[i][1];
+                    const xj = normPoly[j][0], yj = normPoly[j][1];
+                    const intersect = ((yi > testCy) !== (yj > testCy)) &&
+                      (cx < ((xj - xi) * (testCy - yi)) / (yj - yi) + xi);
+                    if (intersect) subInside = !subInside;
+                  }
+                  if (subInside) {
+                    inside = true;
+                    break;
+                  }
                 }
                 if (inside) insideZoneCount++;
               }

@@ -953,6 +953,7 @@ const CameraFeeds: React.FC = () => {
                         areaSqM={getCameraArea(heroCam.cameraId)}
                         isDark={isSocDark}
                         isMasterPlaying={isMasterPlaying}
+                        liveBoxes={heroCam.boxes}
                         anomaly={!!alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)}
                         anomalyType={alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)?.type}
                         onCalibrateZone={() => setCalibratingCamera(heroCam)}
@@ -1000,6 +1001,7 @@ const CameraFeeds: React.FC = () => {
                             areaSqM={getCameraArea(auxCam.cameraId)}
                             isDark={isSocDark}
                             isMasterPlaying={isMasterPlaying}
+                            liveBoxes={auxCam.boxes}
                             anomaly={!!hasActiveAnomaly}
                             anomalyType={hasActiveAnomaly?.type}
                             onCalibrateZone={() => setCalibratingCamera(auxCam)}
@@ -1100,6 +1102,7 @@ const CameraFeeds: React.FC = () => {
                       areaSqM={getCameraArea(focusedCam.cameraId)}
                       isDark={isSocDark}
                       isMasterPlaying={isMasterPlaying}
+                      liveBoxes={focusedCam.boxes}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
                       onCalibrateZone={() => setCalibratingCamera(focusedCam)}
@@ -1140,6 +1143,7 @@ const CameraFeeds: React.FC = () => {
                       areaSqM={getCameraArea(cam.cameraId)}
                       isDark={isSocDark}
                       isMasterPlaying={isMasterPlaying}
+                      liveBoxes={cam.boxes}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
                       onCalibrateZone={() => setCalibratingCamera(cam)}

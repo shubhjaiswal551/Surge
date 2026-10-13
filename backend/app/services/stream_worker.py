@@ -79,7 +79,7 @@ class StreamWorker:
             if not os.path.exists(weights):
                 weights = "yolov8n.pt"
             logger.info(f"Initializing dedicated ByteTrackPipeline for camera {cam_key} (weights={weights})")
-            self.trackers[cam_key] = ByteTrackPipeline(weights_path=weights, imgsz=640)
+            self.trackers[cam_key] = ByteTrackPipeline(weights_path=weights, imgsz=960)
         return self.trackers[cam_key]
 
     def _ensure_tracker(self):
@@ -625,12 +625,28 @@ class StreamWorker:
                         from .notifier import notifier
                         asyncio.create_task(notifier.dispatch_emergency_notification(INCIDENTS_DB[new_inc_id]))
 
+                live_boxes = []
+                for t in trajectories:
+                    bx1, by1, bx2, by2 = t["bbox"]
+                    live_boxes.append({
+                        "id": int(t["track_id"]),
+                        "x": round((float(bx1) / rw) * 100.0, 2),
+                        "y": round((float(by1) / rh) * 100.0, 2),
+                        "w": round(((float(bx2) - float(bx1)) / rw) * 100.0, 2),
+                        "h": round(((float(by2) - float(by1)) / rh) * 100.0, 2),
+                        "conf": int(round(float(t.get("confidence", 0.5)) * 100)),
+                        "label": f"#{int(t['track_id']):02d}",
+                        "cls": int(t.get("cls", 0)),
+                        "isAnomaly": False,
+                    })
+
                 payload = {
                     "camera_id": cam_key,
                     "zone_id": stream["zone_id"],
                     "event_type": event_type or "normal",
                     "severity": severity or 1,
                     "detected_at": now_iso,
+                    "boxes": live_boxes,
                     "metrics": {
                         "density": density_val,
                         "flow_vector": list(flow_vec),

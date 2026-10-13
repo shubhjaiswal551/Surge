@@ -201,6 +201,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               density: ev.density ?? c.density,
               flowDirection: ev.flowDirection ?? c.flowDirection,
               metrics: ev.metrics ?? c.metrics,
+              boxes: ev.boxes ?? c.boxes,
               lastUpdated: ev.timestamp || new Date().toISOString(),
               lastUpdatedAgo: 0,
             }

@@ -45,6 +45,17 @@ export type CrowdEvent = {
   zone_id?: string;
   event_type?: string;
   metrics?: MetricsData;
+  boxes?: Array<{
+    id: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    conf: number;
+    label: string;
+    cls?: number;
+    isAnomaly?: boolean;
+  }>;
 };
 
 export type HeatmapCell = {
@@ -120,4 +131,15 @@ export type CameraState = {
   areaSqM?: number;
   polygonCoords?: [number, number][];
   metrics?: MetricsData;
+  boxes?: Array<{
+    id: number;
+    x: number;
+    y: number;
+    w: number;
+    h: number;
+    conf: number;
+    label: string;
+    cls?: number;
+    isAnomaly?: boolean;
+  }>;
 };
