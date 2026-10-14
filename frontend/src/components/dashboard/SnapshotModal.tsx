@@ -480,11 +480,11 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   const [duration, setDuration] = useState(0);
 
-  // Interactive Layer Toggles (Heatmap & Reticle off by default, Boxes on)
+  // Interactive Layer Toggles (All overlays off by default, shown only when deliberately toggled on)
   const [showReticle, setShowReticle] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showVectors, setShowVectors] = useState(false);
-  const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
   const [overlayOpacity, setOverlayOpacity] = useState(80);
 
   if (!alert) return null;

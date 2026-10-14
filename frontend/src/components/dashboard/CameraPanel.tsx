@@ -227,11 +227,11 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  // Overlay layer toggles
-  const [showBoxes, setShowBoxes] = useState(true);
+  // Overlay layer toggles (off by default, only shown when deliberately toggled on)
+  const [showBoxes, setShowBoxes] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showVectors, setShowVectors] = useState(false);
-  const [showZone, setShowZone] = useState(true);
+  const [showZone, setShowZone] = useState(false);
   const [showSpatialMatrix, setShowSpatialMatrix] = useState(false);
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const [snapshotSuccess, setSnapshotSuccess] = useState(false);
