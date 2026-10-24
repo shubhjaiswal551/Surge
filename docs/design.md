@@ -1,4 +1,4 @@
-# System Design — SafeCrowd
+# System Design — Surge
 
 ## Three-tier architecture
 

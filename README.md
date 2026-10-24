@@ -1,13 +1,13 @@
-# SafeCrowd — Real-Time Crowd Anomaly Detection & Surveillance
+# Surge — Real-Time Crowd Anomaly Detection & Surveillance
 
-SafeCrowd is an AI-driven computer vision and real-time security monitoring platform engineered for high-density public venues, transit hubs, and commercial centers. It detects rapid crowd surges, bottlenecks, counter-flow movements, and erratic dispersal before they escalate into stampedes or security incidents.
+Surge is an AI-driven computer vision and real-time security monitoring platform engineered for high-density public venues, transit hubs, and commercial centers. It detects rapid crowd surges, bottlenecks, counter-flow movements, and erratic dispersal before they escalate into stampedes or security incidents.
 
 ---
 
 ## Repository Structure
 
 ```
-safecrowd/
+surge/
 ├── docs/                     # Product specifications, schemas, rules & roadmaps
 │   ├── prd.md               # Product requirements and success criteria
 │   ├── design.md            # 3-tier architecture and system flow

@@ -1,5 +1,5 @@
 """
-SafeCrowd - Latency Benchmark Test Suite
+Surge - Latency Benchmark Test Suite
 Measures end-to-end processing latency against the PRD 2-3s target (NFR):
   Stage 1: Frame Ingestion & Preprocessing
   Stage 2: YOLO Detection + ByteTrack Multi-Object Tracking
@@ -31,7 +31,7 @@ from ml.analytics.anomaly import detect_anomaly
 
 def run_latency_benchmark(num_frames: int = 50, video_path: str = "frontend/public/12269404_2320_1080_30fps.mp4"):
     print("=" * 65)
-    print("🚀 SafeCrowd End-to-End Latency Benchmark (NFR Target: < 2000ms)")
+    print("🚀 Surge End-to-End Latency Benchmark (NFR Target: < 2000ms)")
     print("=" * 65)
 
     full_video_path = os.path.join(BASE_DIR, video_path)

@@ -130,7 +130,7 @@ const ZoneCalibrationModal: React.FC<ZoneCalibrationModalProps> = ({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer token-admin@safecrowd.io',
+          Authorization: 'Bearer token-admin@surge.io',
         },
         body: JSON.stringify(payload),
       });

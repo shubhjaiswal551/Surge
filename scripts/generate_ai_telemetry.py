@@ -1,5 +1,5 @@
 """
-SafeCrowd - High-Density AI Telemetry Generator
+Surge - High-Density AI Telemetry Generator
 Generates persistent, presentation-ready crowd tracking timelines for camera video feeds
 using the master dual-class YOLOv8s model + head-body fusion + spatial-velocity persistence.
 """

@@ -1,4 +1,4 @@
-# Data Schema — SafeCrowd
+# Data Schema — Surge
 
 ## PostgreSQL — Incident History & Configuration
 

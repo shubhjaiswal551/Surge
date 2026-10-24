@@ -1,5 +1,5 @@
 """
-SafeCrowd - Redis Alert Queue & Event Broker
+Surge - Redis Alert Queue & Event Broker
 Implements the live alert queue specified in docs/schema.md:
   Key pattern: alerts:live:{camera_id} (TTL: 30s)
   Channel: alerts:broadcast (Pub/Sub for distributed workers)
@@ -16,7 +16,7 @@ try:
 except ImportError:
     aioredis = None
 
-logger = logging.getLogger("safecrowd.redis_broker")
+logger = logging.getLogger("surge.redis_broker")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 

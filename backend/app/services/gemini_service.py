@@ -1,5 +1,5 @@
 """
-SafeCrowd - Gemini AI Tactical Incident Debrief Service
+Surge - Gemini AI Tactical Incident Debrief Service
 Connects to Google AI Studio Free Tier (Gemini 1.5 Flash / 2.0 Flash)
 Provides automated operational debriefs, root-cause diagnostics, and security action protocols.
 """
@@ -10,7 +10,7 @@ import logging
 from typing import Dict, Any, Optional
 import httpx
 
-logger = logging.getLogger("safecrowd.gemini")
+logger = logging.getLogger("surge.gemini")
 
 GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent"
 
@@ -39,7 +39,7 @@ async def generate_tactical_debrief(
         try:
             logger.info(f"Calling Google Gemini API for incident {incident_id}...")
             prompt_text = f"""
-You are SafeCrowd Tactical AI, an expert emergency crowd management and physical security specialist.
+You are Surge Tactical AI, an expert emergency crowd management and physical security specialist.
 Analyze this crowd incident and produce a professional operational triage debrief for on-duty security staff.
 
 Incident Context:
@@ -209,6 +209,6 @@ def _generate_fallback_debrief(
         "stampede_risk_percent": stampede_risk,
         "recommended_actions": actions,
         "operator_notes_draft": notes,
-        "source": "SafeCrowd Forensic Rule Engine (Gemini Free Tier Ready)",
+        "source": "Surge Forensic Rule Engine (Gemini Free Tier Ready)",
         "has_api_key": bool(os.getenv("GEMINI_API_KEY", "").strip()),
     }

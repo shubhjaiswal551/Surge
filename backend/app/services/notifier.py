@@ -1,5 +1,5 @@
 """
-SafeCrowd - Emergency Notification & External Dispatch Service
+Surge - Emergency Notification & External Dispatch Service
 Dispatches high-severity crowd emergency notifications to:
   1. Generic Webhooks (Slack, Discord, custom security SOC receivers)
   2. Telegram Bot Broadcasts
@@ -14,7 +14,7 @@ import urllib.error
 import asyncio
 from typing import Dict, Any, Optional
 
-logger = logging.getLogger("safecrowd.notifier")
+logger = logging.getLogger("surge.notifier")
 
 DISPATCH_WEBHOOK_URL = os.getenv("DISPATCH_WEBHOOK_URL", "")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
@@ -45,7 +45,7 @@ class NotifierService:
         snapshot_url = incident.get("snapshot_url", "")
 
         message_text = (
-            f"🚨 [SafeCrowd EMERGENCY DISPATCH]\n"
+            f"🚨 [Surge EMERGENCY DISPATCH]\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"• Anomaly: {event_type} (Severity Level: {severity}/5)\n"
             f"• Camera: {cam_id} | Zone: {zone_id}\n"

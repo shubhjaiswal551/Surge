@@ -1,5 +1,5 @@
 """
-SafeCrowd - Stage 2: Tracking & Analytics Pipeline
+Surge - Stage 2: Tracking & Analytics Pipeline
 Integrates fine-tuned YOLO person detector (best.pt) with ByteTrack.
 Computes:
   - Multi-person tracking across frames
@@ -18,7 +18,7 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-class SafeCrowdTracker:
+class SurgeTracker:
     def __init__(
         self,
         weights_path: str = "backend/models/best.pt",
@@ -28,7 +28,7 @@ class SafeCrowdTracker:
         device: Optional[str] = None
     ):
         self.device = device or ("0" if torch.cuda.is_available() else "cpu")
-        print(f"[SafeCrowdTracker] Initializing YOLO with weights: {weights_path} on {self.device}")
+        print(f"[SurgeTracker] Initializing YOLO with weights: {weights_path} on {self.device}")
         self.model = YOLO(weights_path)
         self.conf = conf_threshold
         self.iou = iou_threshold
@@ -206,11 +206,15 @@ class SafeCrowdTracker:
         return False, None, None
 
 
+# Backward compatibility alias
+SafeCrowdTracker = SurgeTracker
+
+
 if __name__ == "__main__":
     import argparse
     import time
 
-    parser = argparse.ArgumentParser(description="Run SafeCrowd Stage 2 ByteTrack on a video file")
+    parser = argparse.ArgumentParser(description="Run Surge Stage 2 ByteTrack on a video file")
     parser.add_argument("--source", type=str, default="public/12269404_2320_1080_30fps.mp4", help="Path to video or web camera index")
     parser.add_argument("--weights", type=str, default="backend/models/best.pt", help="Path to best.pt")
     parser.add_argument("--display", action="store_true", help="Display OpenCV window")
@@ -221,7 +225,7 @@ if __name__ == "__main__":
         print(f"Error: Could not open video source {args.source}")
         exit(1)
 
-    tracker = SafeCrowdTracker(weights_path=args.weights)
+    tracker = SurgeTracker(weights_path=args.weights)
     fps_start = time.time()
     frame_count = 0
 
@@ -243,7 +247,7 @@ if __name__ == "__main__":
                   f"Flow Dir: {data['flowDirection']}° | FPS: {fps:.1f} | Anomaly: {data['anomaly']}")
 
         if args.display:
-            cv2.imshow("SafeCrowd Stage 2 - ByteTrack", data["annotated_frame"])
+            cv2.imshow("Surge Stage 2 - ByteTrack", data["annotated_frame"])
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
 

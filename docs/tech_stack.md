@@ -1,4 +1,4 @@
-# Tech Stack — SafeCrowd
+# Tech Stack — Surge
 
 | Layer | Technology | Notes / Rationale |
 |---|---|---|

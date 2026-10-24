@@ -75,14 +75,14 @@ const Sidebar: React.FC<SidebarProps> = ({ alertCount }) => {
         <div className="flex items-center gap-3">
           <img
             src="/logo.png"
-            alt="SafeCrowd Logo"
-            className="h-9 w-auto max-w-[44px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
+            alt="Surge Logo"
+            className="h-10 w-auto max-w-[46px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
           />
-          <div className="flex flex-col leading-tight">
-            <span className="text-slate-900 font-bold tracking-tight text-base font-sans">
-              SafeCrowd
+          <div className="flex flex-col justify-center">
+            <span className="text-slate-900 font-extrabold tracking-tight text-xl font-sans leading-none">
+              Surge
             </span>
-            <span className="text-[10px] text-slate-400 font-medium tracking-wide font-sans">
+            <span className="text-[10px] text-slate-400 font-semibold tracking-wider uppercase font-sans mt-1">
               Control Station
             </span>
           </div>

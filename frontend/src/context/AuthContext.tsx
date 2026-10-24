@@ -66,7 +66,7 @@ interface AuthProviderProps {
 }
 
 const getInitialState = () => {
-  const demoModeKey = 'safecrowd_demo_user';
+  const demoModeKey = 'surge_demo_user';
   const demoStored = typeof window !== 'undefined' ? sessionStorage.getItem(demoModeKey) : null;
   if (demoStored) {
     try {
@@ -85,7 +85,7 @@ const getInitialState = () => {
   }
   const defaultDemo: UserProfile = {
     uid: 'demo_operator',
-    email: 'operator@safecrowd.io',
+    email: 'operator@surge.io',
     displayName: 'Control Room Operator',
     role: 'operator',
     createdAt: new Date().toISOString(),
@@ -239,14 +239,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 
   const signInDemo = useCallback((name: string) => {
-    const demo2FAKey = 'safecrowd_demo_2fa_active';
+    const demo2FAKey = 'surge_demo_2fa_active';
     const is2FAActive = sessionStorage.getItem(demo2FAKey) === 'true';
 
     const uid = 'demo_' + Math.random().toString(36).slice(2, 10);
     const displayName = name.trim() || 'Demo Operator';
     const demoProfile: UserProfile = {
       uid,
-      email: `${displayName.toLowerCase().replace(/\s+/g, '.')}@demo.safecrowd.io`,
+      email: `${displayName.toLowerCase().replace(/\s+/g, '.')}@demo.surge.io`,
       displayName,
       photoURL: undefined,
       role: 'operator',
@@ -274,7 +274,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       },
     };
     sessionStorage.setItem(
-      'safecrowd_demo_user',
+      'surge_demo_user',
       JSON.stringify(demoProfile),
     );
     setUser(pseudoFirebaseUser as User);
@@ -289,8 +289,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         multiFactorSession,
       );
       const qrUrl = secret.generateQrCodeUrl(
-        user.email || 'operator@safecrowd.io',
-        'SafeCrowd Control Room',
+        user.email || 'operator@surge.io',
+        'Surge Control Room',
       );
       return {
         secretKey: secret.secretKey,
@@ -303,8 +303,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       for (let i = 0; i < 16; i++) {
         mockSecret += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      const accountName = profile?.email || 'demo.operator@safecrowd.io';
-      const qrUrl = `otpauth://totp/SafeCrowd%20Control%20Room:${encodeURIComponent(accountName)}?secret=${mockSecret}&issuer=SafeCrowd%20Control%20Room`;
+      const accountName = profile?.email || 'demo.operator@surge.io';
+      const qrUrl = `otpauth://totp/Surge%20Control%20Room:${encodeURIComponent(accountName)}?secret=${mockSecret}&issuer=Surge%20Control%20Room`;
       return {
         secretKey: mockSecret,
         qrCodeUrl: qrUrl,
@@ -334,8 +334,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           await updateDoc(userRef, { twoFactorEnabled: true });
         }
       } else {
-        sessionStorage.setItem('safecrowd_demo_2fa_active', 'true');
-        sessionStorage.setItem('safecrowd_demo_2fa_secret', secretKey);
+        sessionStorage.setItem('surge_demo_2fa_active', 'true');
+        sessionStorage.setItem('surge_demo_2fa_secret', secretKey);
       }
 
       setProfile((prev) => (prev ? { ...prev, twoFactorEnabled: true } : null));
@@ -357,8 +357,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         await updateDoc(userRef, { twoFactorEnabled: false });
       }
     } else {
-      sessionStorage.removeItem('safecrowd_demo_2fa_active');
-      sessionStorage.removeItem('safecrowd_demo_2fa_secret');
+      sessionStorage.removeItem('surge_demo_2fa_active');
+      sessionStorage.removeItem('surge_demo_2fa_secret');
     }
     setProfile((prev) => (prev ? { ...prev, twoFactorEnabled: false } : null));
   }, [authMode, user]);
@@ -399,7 +399,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           },
         };
         sessionStorage.setItem(
-          'safecrowd_demo_user',
+          'surge_demo_user',
           JSON.stringify(pendingDemoUser),
         );
         setUser(pseudoFirebaseUser as User);
@@ -424,6 +424,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (authMode === 'firebase' && auth) {
       await signOut(auth);
     }
+    sessionStorage.removeItem('surge_demo_user');
     sessionStorage.removeItem('safecrowd_demo_user');
     setUser(null);
     setProfile(null);

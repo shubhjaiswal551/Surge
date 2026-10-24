@@ -1,5 +1,5 @@
 """
-SafeCrowd - Real-time Video Stream Worker
+Surge - Real-time Video Stream Worker
 Runs YOLO + ByteTrack perception & analytics tier and broadcasts events to connected clients.
 """
 
@@ -32,7 +32,7 @@ from ..routers.cameras import CAMERAS_DB
 from ..routers.zones import ZONES_DB
 from ..core.redis_broker import alert_broker
 
-logger = logging.getLogger("safecrowd.stream_worker")
+logger = logging.getLogger("surge.stream_worker")
 
 SNAPSHOTS_DIR = os.path.abspath(
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "snapshots")
@@ -111,7 +111,7 @@ class StreamWorker:
         """
         import random
         self.is_running = True
-        logger.info("SafeCrowd Cloud Simulation Loop is active (RAM optimized, <60MB)")
+        logger.info("Surge Cloud Simulation Loop is active (RAM optimized, <60MB)")
 
         cam_state = {
             "cam-001": {"headcount": 22, "flow_x": 0.8, "flow_y": -0.2, "speed": 1.2},
@@ -563,7 +563,7 @@ class StreamWorker:
                         cv2.rectangle(snapshot_img, (10, 10), (950, 60), (0, 0, 0), -1)
                         cv2.putText(
                             snapshot_img,
-                            f"SAFECROWD ANOMALY: {event_type.upper()} [SEV {severity or 3}] | Cam: {cam_key} | {now_iso}",
+                            f"SURGE ANOMALY: {event_type.upper()} [SEV {severity or 3}] | Cam: {cam_key} | {now_iso}",
                             (20, 42),
                             cv2.FONT_HERSHEY_SIMPLEX,
                             0.65,

@@ -13,14 +13,14 @@ const LogoMark: React.FC = () => {
     <div className="flex items-center gap-3">
       <img
         src="/logo.png"
-        alt="SafeCrowd Logo"
-        className="h-10 w-auto max-w-[48px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
+        alt="Surge Logo"
+        className="h-11 w-auto max-w-[50px] object-contain drop-shadow-[0_1px_2px_rgba(0,0,0,0.08)] shrink-0"
       />
-      <div className="flex flex-col leading-tight">
-        <span className="text-slate-900 font-bold tracking-tight text-base font-sans">
-          SafeCrowd
+      <div className="flex flex-col justify-center">
+        <span className="text-slate-900 font-extrabold tracking-tight text-xl font-sans leading-none">
+          Surge
         </span>
-        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-mono font-semibold">
+        <span className="text-[10px] uppercase tracking-wider text-slate-400 font-sans font-semibold mt-1">
           Control Center
         </span>
       </div>
@@ -35,7 +35,7 @@ const Landing: React.FC = () => {
 
   useEffect(() => {
     if (!loading) {
-      const hasDemo = sessionStorage.getItem('safecrowd_demo_user');
+      const hasDemo = sessionStorage.getItem('surge_demo_user') || sessionStorage.getItem('safecrowd_demo_user');
       if (user || hasDemo) {
         navigate('/dashboard', { replace: true });
       }
@@ -175,7 +175,7 @@ const Landing: React.FC = () => {
 
       {/* Minimal Footer */}
       <footer className="border-t border-slate-200/80 px-8 py-3.5 flex items-center justify-between text-xs text-slate-500 bg-white/60 backdrop-blur-md">
-        <span>© {new Date().getFullYear()} SafeCrowd Systems</span>
+        <span>© {new Date().getFullYear()} Surge Systems</span>
         <span className="text-slate-400">Security Operations Console · Internal Use Only</span>
       </footer>
     </div>

@@ -1,4 +1,4 @@
-# SafeCrowd Dense Surveillance ByteTrack Configuration
+# Surge Dense Surveillance ByteTrack Configuration
 # Optimized for high-density crowds, deep occlusions, and distant pedestrian bodies
 tracker_type: bytetrack
 track_high_thresh: 0.20 # Associate stage-1 detections even under partial occlusion

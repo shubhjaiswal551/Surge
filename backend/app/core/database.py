@@ -1,5 +1,5 @@
 """
-SafeCrowd - Database Engine & ORM Configuration
+Surge - Database Engine & ORM Configuration
 Async database session management using SQLAlchemy 2.0.
 Supports SQLite (development/offline) and PostgreSQL (production).
 """
@@ -11,7 +11,7 @@ from sqlalchemy.orm import DeclarativeBase
 
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "sqlite+aiosqlite:///backend/safecrowd.db"
+    "sqlite+aiosqlite:///backend/surge.db"
 )
 
 # Replace postgres:// with postgresql+asyncpg:// if needed for async SQLAlchemy

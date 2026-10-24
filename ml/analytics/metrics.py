@@ -1,5 +1,5 @@
 """
-SafeCrowd - Phase 3: Analytics Tier Mathematical Metrics
+Surge - Phase 3: Analytics Tier Mathematical Metrics
 Computes density, 2D flow vectors, velocity variance, and spatial heatmaps.
 """
 

@@ -1,5 +1,5 @@
 """
-SafeCrowd - WebSocket Broadcaster Router
+Surge - WebSocket Broadcaster Router
 Handles real-time metric & alert streaming to connected frontend clients with token authentication support.
 """
 
@@ -9,7 +9,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Query, status
 from ..services.stream_worker import stream_worker
 from .auth import USERS_DB
 
-logger = logging.getLogger("safecrowd.websocket")
+logger = logging.getLogger("surge.websocket")
 router = APIRouter(tags=["WebSocket"])
 
 def verify_ws_token(token: Optional[str]) -> bool:

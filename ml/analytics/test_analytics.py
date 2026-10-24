@@ -1,5 +1,5 @@
 """
-SafeCrowd - Unit Tests for Analytics Metrics & Anomaly Logic
+Surge - Unit Tests for Analytics Metrics & Anomaly Logic
 Hand-computed expected values to ensure mathematical fidelity and rule adherence.
 """
 

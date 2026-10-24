@@ -1,5 +1,5 @@
 /**
- * SafeCrowd - Client-Side AI & Forensic Rule Engine Debrief Service
+ * Surge - Client-Side AI & Forensic Rule Engine Debrief Service
  * 
  * Provides seamless tactical debriefs in client-only deployments (such as Vercel preview/production
  * without a live FastAPI backend), and supports direct Google Gemini Flash calls if a client key is configured.
@@ -106,7 +106,7 @@ export function generateClientForensicDebrief(params: DebriefParams): DebriefRes
     stampede_risk_percent: stampedeRiskPercent,
     recommended_actions: actions,
     operator_notes_draft: notes,
-    source: 'SafeCrowd Forensic Rule Engine (Client Verified)',
+    source: 'Surge Forensic Rule Engine (Client Verified)',
     has_api_key: false,
   };
 }

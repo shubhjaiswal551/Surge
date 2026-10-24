@@ -47,7 +47,7 @@ if ret:
     ], np.int32)
     cv2.polylines(out_con, [pts], isClosed=True, color=(255, 100, 255), thickness=2)
     
-    header = f"SAFECROWD DUAL-ANCHOR AI: {len(kf['boxes'])} PAX DETECTED & TRACKED"
+    header = f"SURGE DUAL-ANCHOR AI: {len(kf['boxes'])} PAX DETECTED & TRACKED"
     cv2.putText(out_con, header, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 255), 2)
     cv2.imwrite("backend/snapshots/concourse_verified_f348.jpg", out_con)
     print("Saved backend/snapshots/concourse_verified_f348.jpg")
@@ -88,7 +88,7 @@ if ret_c:
     ], np.int32)
     cv2.polylines(out_cor, [pts_c], isClosed=True, color=(255, 180, 0), thickness=2)
     
-    header_c = f"SAFECROWD CHOKEPOINT AI: {len(kf_c['boxes'])} PAX (CONTAINMENT SUPPRESSED)"
+    header_c = f"SURGE CHOKEPOINT AI: {len(kf_c['boxes'])} PAX (CONTAINMENT SUPPRESSED)"
     cv2.putText(out_cor, header_c, (20, 35), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 255, 255), 2)
     cv2.imwrite("backend/snapshots/corridor_verified_f150.jpg", out_cor)
     print("Saved backend/snapshots/corridor_verified_f150.jpg")

@@ -815,14 +815,14 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 15px monospace';
     ctx.fillText(
-      `SAFECROWD FORENSIC CAPTURE · ${cameraId.toUpperCase()} · ${zoneName.toUpperCase()} · HEADCOUNT: ${liveHeadcount} · ${new Date().toISOString()}`,
+      `SURGE FORENSIC CAPTURE · ${cameraId.toUpperCase()} · ${zoneName.toUpperCase()} · HEADCOUNT: ${liveHeadcount} · ${new Date().toISOString()}`,
       20,
       offscreen.height - 15,
     );
 
     const dataUrl = offscreen.toDataURL('image/png');
     const link = document.createElement('a');
-    link.download = `SafeCrowd_${cameraId}_${Date.now()}.png`;
+    link.download = `Surge_${cameraId}_${Date.now()}.png`;
     link.href = dataUrl;
     link.click();
     setSnapshotSuccess(true);
@@ -923,7 +923,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SafeCrowd_Dossier_${cameraId}_${Date.now()}.json`;
+    a.download = `Surge_Dossier_${cameraId}_${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     setDossierSuccess(true);

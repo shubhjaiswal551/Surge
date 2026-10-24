@@ -1,12 +1,12 @@
-# SafeCrowd — Frontend Build Prompt (Phase 1: UI + Auth + Demo Dashboard)
+# Surge — Frontend Build Prompt (Phase 1: UI + Auth + Demo Dashboard)
 
-Use this as a direct prompt for an AI coding assistant (Claude Code, Cursor, v0, etc.) to scaffold the SafeCrowd frontend. The ML/YOLO backend is NOT ready yet — this phase is UI + Firebase Auth + a mocked dashboard with 2 simulated camera feeds so stakeholders can see the product before the model is trained.
+Use this as a direct prompt for an AI coding assistant (Claude Code, Cursor, v0, etc.) to scaffold the Surge frontend. The ML/YOLO backend is NOT ready yet — this phase is UI + Firebase Auth + a mocked dashboard with 2 simulated camera feeds so stakeholders can see the product before the model is trained.
 
 ---
 
 ## Project Context
 
-Build the frontend for **SafeCrowd**, a real-time crowd anomaly detection and security alert platform. It monitors CCTV feeds in public spaces (transit hubs, temples, stadiums, malls), detects crowd surges/bottlenecks/erratic dispersal, and pushes alerts to a security dashboard.
+Build the frontend for **Surge**, a real-time crowd anomaly detection and security alert platform. It monitors CCTV feeds in public spaces (transit hubs, temples, stadiums, malls), detects crowd surges/bottlenecks/erratic dispersal, and pushes alerts to a security dashboard.
 
 This phase covers only the **frontend experience**, using **mock/simulated data** in place of the real YOLO + ByteTrack pipeline. The UI must be built so real WebSocket data can be dropped in later without restructuring.
 
@@ -29,7 +29,7 @@ This phase covers only the **frontend experience**, using **mock/simulated data*
 This is the **first screen** a visitor sees. It should feel like a serious security-tech product, not a generic SaaS template — dark theme, high contrast, a sense of vigilance/control-room precision.
 
 **Structure:**
-- Hero section: SafeCrowd name/logo, one-line value prop ("Real-time crowd anomaly detection for public safety"), subtle animated background (e.g. faint moving dot-grid or pulse lines suggesting live monitoring — no stock crowd photos)
+- Hero section: Surge name/logo, one-line value prop ("Real-time crowd anomaly detection for public safety"), subtle animated background (e.g. faint moving dot-grid or pulse lines suggesting live monitoring — no stock crowd photos)
 - Primary CTA: **"Continue with Google"** button (Firebase Google OAuth)
 - Secondary option: Email/password **Sign Up** / **Log In** toggle form
 - Footer: minimal — product name, "Built for control rooms," no fake links
@@ -53,7 +53,7 @@ This is the **first screen** a visitor sees. It should feel like a serious secur
 Once logged in, the operator lands on the main control-room dashboard.
 
 **Layout:**
-- Left sidebar: SafeCrowd logo, nav (Dashboard, Camera Feeds, Alerts, Incident Log, Settings), user avatar + name (from Firebase) + logout at bottom
+- Left sidebar: Surge logo, nav (Dashboard, Camera Feeds, Alerts, Incident Log, Settings), user avatar + name (from Firebase) + logout at bottom
 - Top bar: system status pill ("All systems nominal" / "2 active alerts"), current date/time, notification bell with live alert count
 
 **Main content — Camera Grid (2 demo cameras):**

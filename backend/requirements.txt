@@ -1,4 +1,4 @@
-# SafeCrowd Backend Requirements
+# Surge Backend Requirements
 ultralytics>=8.3.0
 torch
 torchvision

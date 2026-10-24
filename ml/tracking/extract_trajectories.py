@@ -1,5 +1,5 @@
 """
-SafeCrowd - Phase 2: Multi-Object Trajectory Extraction
+Surge - Phase 2: Multi-Object Trajectory Extraction
 Extracts frame-by-frame trajectory state from YOLO + ByteTrack detections.
 """
 

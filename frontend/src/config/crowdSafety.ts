@@ -1,5 +1,5 @@
 /**
- * SafeCrowd - Shared Crowd Safety Constants & Pure Mathematical Rule Engines
+ * Surge - Shared Crowd Safety Constants & Pure Mathematical Rule Engines
  * Enforces docs/rules.md, schema.md, and AppFlow.md standards.
  */
 

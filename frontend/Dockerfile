@@ -1,4 +1,4 @@
-# SafeCrowd Frontend Dockerfile
+# Surge Frontend Dockerfile
 # Stage 1: Build production bundle
 FROM node:20-alpine AS builder
 

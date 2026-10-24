@@ -1,6 +1,6 @@
-# SafeCrowd — Render Deployment Guide
+# Surge — Render Deployment Guide
 
-This guide walks you through deploying the SafeCrowd backend to **Render** and linking it with your live **Vercel frontend**, turning your deployment into a live, interactive working model.
+This guide walks you through deploying the Surge backend to **Render** and linking it with your live **Vercel frontend**, turning your deployment into a live, interactive working model.
 
 ---
 
@@ -11,11 +11,11 @@ This guide walks you through deploying the SafeCrowd backend to **Render** and l
        │
        ▼
 [ Vercel Frontend ] (React + Vite + Tailwind)
-   https://safecrowd.vercel.app
+   https://surge.vercel.app
        │
-       ├── HTTPS REST APIs ──► https://safecrowd-backend.onrender.com/incidents
+       ├── HTTPS REST APIs ──► https://surge-backend.onrender.com/incidents
        │
-       └── Secure WebSocket ──► wss://safecrowd-backend.onrender.com/ws/crowd-feed
+       └── Secure WebSocket ──► wss://surge-backend.onrender.com/ws/crowd-feed
                                      │
                              [ Render Backend ]
                                 FastAPI Service
@@ -35,7 +35,7 @@ This guide walks you through deploying the SafeCrowd backend to **Render** and l
    ```
 2. Go to [Render Dashboard](https://dashboard.render.com).
 3. Click **New +** > **Blueprint**.
-4. Connect your `SafeCrowd` repository.
+4. Connect your `Surge` repository.
 5. Render will automatically detect `render.yaml` and configure the web service with:
    - **Environment:** Docker
    - **Health Check:** `/health`
@@ -45,9 +45,9 @@ This guide walks you through deploying the SafeCrowd backend to **Render** and l
 
 ### Method B: Manual Web Service Setup
 1. Go to [Render Dashboard](https://dashboard.render.com) and click **New +** > **Web Service**.
-2. Select your repository: `shubhjaiswal551/SafeCrowd`.
+2. Select your repository: `shubhjaiswal551/surge`.
 3. Fill in the details:
-   - **Name:** `safecrowd-backend`
+   - **Name:** `surge-backend`
    - **Region:** Any (e.g. `Oregon (US West)` or `Frankfurt (EU)`)
    - **Language / Runtime:** `Docker`
    - **Dockerfile Path:** `backend/Dockerfile`
@@ -71,7 +71,7 @@ Once Render finishes building:
    ```json
    {
      "status": "online",
-     "service": "safecrowd-backend",
+     "service": "surge-backend",
      "redis_connected": false,
      "clients_connected": 0
    }
@@ -83,7 +83,7 @@ Once Render finishes building:
 ## 4. Link Vercel Frontend to Render
 
 1. Go to your [Vercel Dashboard](https://vercel.com/dashboard).
-2. Select your `SafeCrowd` project.
+2. Select your `Surge` project.
 3. Navigate to **Settings** > **Environment Variables**.
 4. Add the following variables (for Production & Preview):
    - **`VITE_API_URL`**: `https://<your-backend-name>.onrender.com`
@@ -94,6 +94,6 @@ Once Render finishes building:
 ---
 
 ## 5. Free Tier Behavior & Best Practices
-* **Cold Starts:** Render free services spin down after 15 minutes of inactivity. When you first visit your Vercel app after a break, it may take ~45 seconds for Render to wake up. SafeCrowd's frontend automatically shows mock data during reconnection and switches to the live stream as soon as the backend responds.
+* **Cold Starts:** Render free services spin down after 15 minutes of inactivity. When you first visit your Vercel app after a break, it may take ~45 seconds for Render to wake up. Surge's frontend automatically shows mock data during reconnection and switches to the live stream as soon as the backend responds.
 * **Upgrading to Full YOLO Inference:**
   If you upgrade to Render's **Starter** plan ($7/mo with 1-2GB RAM), you can set `DEMO_MODE=false` in the Render environment variables to run live CPU YOLO + ByteTrack video inference!

@@ -1,4 +1,4 @@
-# Product Requirements Document — SafeCrowd
+# Product Requirements Document — Surge
 
 ## 1. Objective
 
@@ -10,7 +10,7 @@ after-the-fact review tool.
 
 ## 2. Problem / Research Gaps
 
-| ID | Gap | How SafeCrowd addresses it |
+| ID | Gap | How Surge addresses it |
 |---|---|---|
 | RG1 | Standard CCTV is reactive — footage is reviewed after an incident, not during it | Real-time detection + alerting loop, not just recording |
 | RG2 | Detection research rarely integrates with an operational dashboard operators actually use | Dashboard is a first-class deliverable, not an afterthought |

@@ -1,5 +1,5 @@
 """
-SafeCrowd - FastAPI Backend Application
+Surge - FastAPI Backend Application
 Modular resource routers, Pydantic validation, and real-time WebSocket broadcaster.
 """
 
@@ -16,7 +16,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
-logger = logging.getLogger("safecrowd.backend")
+logger = logging.getLogger("surge.backend")
 
 from .core.database import engine, Base
 from .core.redis_broker import alert_broker
@@ -32,11 +32,11 @@ async def lifespan(app: FastAPI):
     await alert_broker.connect()
 
     # Startup: Launch video inference pipeline in background
-    logger.info("Starting SafeCrowd analytics background worker...")
+    logger.info("Starting Surge analytics background worker...")
     task = asyncio.create_task(stream_worker.run_pipeline_loop())
     yield
     # Shutdown: Stop worker gracefully
-    logger.info("Shutting down SafeCrowd analytics background worker...")
+    logger.info("Shutting down Surge analytics background worker...")
     stream_worker.is_running = False
     task.cancel()
     await alert_broker.close()
@@ -55,7 +55,7 @@ else:
     allowed_origins = ["*"]
 
 app = FastAPI(
-    title="SafeCrowd Analytics & Alerting API",
+    title="Surge Analytics & Alerting API",
     description="Real-Time Crowd Anomaly Detection, Triage, and Video Intelligence Service",
     version="1.0.0",
     lifespan=lifespan,
@@ -87,7 +87,7 @@ app.mount("/snapshots", StaticFiles(directory=snapshots_dir), name="snapshots")
 async def health_check():
     return {
         "status": "online",
-        "service": "safecrowd-backend",
+        "service": "surge-backend",
         "redis_connected": alert_broker.is_connected,
         "clients_connected": len(stream_worker.connected_clients),
     }

@@ -1,5 +1,5 @@
 """
-SafeCrowd - Phase 3: Anomaly & Risk Rule Engine
+Surge - Phase 3: Anomaly & Risk Rule Engine
 Distinguishes static/orderly high density from dynamic risk (surges, bottlenecks, erratic dispersal).
 """
 

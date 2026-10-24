@@ -1,5 +1,5 @@
 """
-SafeCrowd - MOT20 Precise Sequence Downloader & Annotator
+Surge - MOT20 Precise Sequence Downloader & Annotator
 Downloads official high-density CCTV training sequences (MOT20-01, 02, 03, 05) as compressed MP4s (~200MB total),
 extracts keyframes, and maps official MOT20 ground-truth bounding boxes + synthesized top-down head annotations
 directly into datasets/cctv_master.

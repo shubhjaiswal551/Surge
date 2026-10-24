@@ -1,5 +1,5 @@
 """
-SafeCrowd - Master High-Angle CCTV & Head YOLOv8 Training Script
+Surge - Master High-Angle CCTV & Head YOLOv8 Training Script
 Trains YOLOv8s on the combined VisDrone + Top-Down Head + Dense Crowd dataset
 Exports fine-tuned weights to PyTorch (best.pt) and optimized ONNX (best.onnx).
 """
@@ -32,7 +32,7 @@ logger = logging.getLogger("master_train")
 
 def run_training():
     logger.info("=" * 65)
-    logger.info("Starting SafeCrowd Master High-Angle CCTV & Head Training Run")
+    logger.info("Starting Surge Master High-Angle CCTV & Head Training Run")
     logger.info("=" * 65)
 
     if not DATA_YAML.exists():

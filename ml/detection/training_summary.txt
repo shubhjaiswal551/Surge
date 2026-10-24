@@ -1,5 +1,5 @@
 ======================================================================
-SafeCrowd — Full CrowdHuman YOLOv8s Model Retraining Summary
+Surge — Full CrowdHuman YOLOv8s Model Retraining Summary
 ======================================================================
 
 Date Completed: Wed Oct 7 04:35:00 2026
@@ -24,7 +24,7 @@ Compute Device: NVIDIA GeForce RTX 4060 Laptop GPU (8GB VRAM)
    - ONNX Model:       ml/detection/weights/best.onnx (42.7 MB, Slimmed & Optimized)
    - Demo Backups:     ml/detection/weights/best_demo.pt, best_demo.onnx
 
-4. Impact on SafeCrowd:
+4. Impact on Surge:
    - High mAP@50 (71%) dramatically reduces dropped bounding boxes in dense occlusions.
    - ByteTrack identity switches are minimized, preventing false velocity variance spikes.
    - Eliminates false-positive panic/surge alarms on orderly queues.

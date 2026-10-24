@@ -1,4 +1,4 @@
-# Implementation Plan — SafeCrowd
+# Implementation Plan — Surge
 
 Build order follows the pipeline's natural dependency chain: you can't track
 people you haven't detected, can't compute density/flow without trajectories,

@@ -1,5 +1,5 @@
 """
-SafeCrowd - High-Density Multi-Object Tracker Module
+Surge - High-Density Multi-Object Tracker Module
 Combines dual-class YOLOv8s (pedestrian + head) with containment suppression,
 head-to-body projection fusion for dense crowd occlusions, and
 spatial-velocity track persistence.
@@ -13,7 +13,7 @@ import numpy as np
 import torch
 from ultralytics import YOLO
 
-logger = logging.getLogger("safecrowd.ml.tracking")
+logger = logging.getLogger("surge.ml.tracking")
 
 CONFIG = {
     "default_weights": "ml/detection/weights/best.pt",

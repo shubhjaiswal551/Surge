@@ -1,5 +1,5 @@
 """
-SafeCrowd - Server Entrypoint
+Surge - Server Entrypoint
 Runs the modular FastAPI application with Uvicorn.
 """
 

@@ -74,7 +74,7 @@ const LoginForm: React.FC<LoginFormProps> = () => {
             Google Authenticator 2FA Required
           </div>
           <div className="text-slate-500 text-[11px]">
-            Open your Google Authenticator app and enter the 6-digit code for SafeCrowd.
+            Open your Google Authenticator app and enter the 6-digit code for Surge.
           </div>
         </div>
 

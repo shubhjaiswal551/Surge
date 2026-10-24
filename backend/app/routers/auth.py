@@ -1,5 +1,5 @@
 """
-SafeCrowd - Auth Router & RBAC Dependencies
+Surge - Auth Router & RBAC Dependencies
 Implements JWT tokens and role verification (admin vs operator).
 """
 
@@ -13,27 +13,30 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 # In-memory store for development/Phase 4 scaffold until PostgreSQL connection
 USERS_DB: Dict[str, Dict] = {
-    "operator@safecrowd.io": {
+    "operator@surge.io": {
         "id": "usr-op-001",
-        "email": "operator@safecrowd.io",
+        "email": "operator@surge.io",
         "role": "operator",
         "password_hash": "demo_hashed_pass",
         "created_at": datetime.utcnow().isoformat() + "Z",
     },
-    "admin@safecrowd.io": {
+    "admin@surge.io": {
         "id": "usr-adm-001",
-        "email": "admin@safecrowd.io",
+        "email": "admin@surge.io",
         "role": "admin",
         "password_hash": "demo_hashed_pass",
         "created_at": datetime.utcnow().isoformat() + "Z",
     },
 }
+# Backward compatibility aliases
+USERS_DB["operator@safecrowd.io"] = USERS_DB["operator@surge.io"]
+USERS_DB["admin@safecrowd.io"] = USERS_DB["admin@surge.io"]
 
 def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
     """Dependency verifying token header."""
     if not authorization:
         # Default to demo operator for development convenience
-        return USERS_DB["operator@safecrowd.io"]
+        return USERS_DB["operator@surge.io"]
 
     token = authorization.replace("Bearer ", "").strip()
     if token.startswith("token-"):
@@ -41,7 +44,7 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Dict:
         if email in USERS_DB:
             return USERS_DB[email]
 
-    return USERS_DB["operator@safecrowd.io"]
+    return USERS_DB["operator@surge.io"]
 
 def require_admin(user: Dict = Depends(get_current_user)) -> Dict:
     """RBAC Dependency: enforces admin role."""

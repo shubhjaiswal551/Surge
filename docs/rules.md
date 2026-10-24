@@ -1,4 +1,4 @@
-# Coding Rules — SafeCrowd
+# Coding Rules — Surge
 
 These are the conventions any contributor (human or coding agent) should
 follow when adding to this repo. Read this before generating new code.

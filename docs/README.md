@@ -1,4 +1,4 @@
-# SafeCrowd
+# Surge
 
 **Real-Time Crowd Anomaly Detection and Automated Security Alert System**
 
@@ -33,7 +33,7 @@ Full detail: [design.md](./design.md)
 ## Repo structure
 
 ```
-safecrowd/
+surge/
 ├── ml/
 │   ├── detection/        # Stage 1 — YOLO training + inference
 │   ├── tracking/         # Stage 2 — ByteTrack integration

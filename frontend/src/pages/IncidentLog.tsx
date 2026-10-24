@@ -153,7 +153,7 @@ const IncidentLog: React.FC = () => {
     link.setAttribute('href', encodedUri);
     link.setAttribute(
       'download',
-      `safecrowd-incident-audit-${new Date().toISOString().slice(0, 10)}.csv`,
+      `surge-incident-audit-${new Date().toISOString().slice(0, 10)}.csv`,
     );
     document.body.appendChild(link);
     link.click();

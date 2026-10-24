@@ -1,5 +1,5 @@
 """
-SafeCrowd - Operations Router
+Surge - Operations Router
 Handles rapid response SOP dispatch, audit logging, and external webhooks per AppFlow.md and schema.md.
 """
 
@@ -15,7 +15,7 @@ from ..models.db_models import AuditLogModel
 from ..core.database import AsyncSessionLocal
 from .auth import get_current_user
 
-logger = logging.getLogger("safecrowd.operations")
+logger = logging.getLogger("surge.operations")
 
 router = APIRouter(prefix="/operations", tags=["Operations"])
 
@@ -44,7 +44,7 @@ async def execute_dispatch_action(
                 res = await client.post(
                     webhook_url,
                     json={
-                        "event": "SAFECROWD_OPERATIONAL_DISPATCH",
+                        "event": "SURGE_OPERATIONAL_DISPATCH",
                         "action": req.action,
                         "target_zone": req.target_zone_id,
                         "operator": user_id,
@@ -62,7 +62,7 @@ async def execute_dispatch_action(
         try:
             tg_url = f"https://api.telegram.org/bot{telegram_bot}/sendMessage"
             tg_text = (
-                f"🚨 *SAFECROWD SOP DISPATCH*\n"
+                f"🚨 *SURGE SOP DISPATCH*\n"
                 f"*Action:* {req.action}\n"
                 f"*Target:* {req.target_zone_id or 'General Area'}\n"
                 f"*Operator:* {user_id}\n"

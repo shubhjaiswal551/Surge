@@ -1,5 +1,5 @@
 """
-SafeCrowd - Overnight Automated Full Dataset Training Script
+Surge - Overnight Automated Full Dataset Training Script
 Trains YOLOv8s (Small) on RTX 4060 GPU with CrowdHuman (19.3k images).
 Automatically finds downloaded dataset, validates results, exports to ONNX,
 and replaces best.pt / best.onnx.
@@ -164,7 +164,7 @@ def export_and_deploy(trained_model):
 
 def main():
     logger.info("=================================================================")
-    logger.info("SafeCrowd — High Accuracy YOLOv8s Overnight Training Starting")
+    logger.info("Surge — High Accuracy YOLOv8s Overnight Training Starting")
     logger.info("Target: Full 19.3k CrowdHuman Dataset | Target Completion: ~4:30 AM")
     logger.info("=================================================================")
     try:
@@ -176,7 +176,7 @@ def main():
         # Write summary file
         summary_path = Path("ml/detection/training_summary.txt")
         with open(summary_path, "w", encoding="utf-8") as f:
-            f.write("SafeCrowd Retraining Completed Successfully!\n")
+            f.write("Surge Retraining Completed Successfully!\n")
             f.write(f"Model Architecture: YOLOv8s (Small - 11.2M Parameters)\n")
             f.write(f"Completed at: {time.ctime()}\n")
             f.write("Weights updated: ml/detection/weights/best.pt and best.onnx\n")

@@ -28,7 +28,7 @@ export function useCrowdStream(
       socketRef.current = ws;
 
       ws.onopen = () => {
-        console.log('[SafeCrowd WS] Connected to live backend stream');
+        console.log('[Surge WS] Connected to live backend stream');
         setIsConnected(true);
       };
 
@@ -40,12 +40,12 @@ export function useCrowdStream(
             onEvent(data);
           }
         } catch (err) {
-          console.error('[SafeCrowd WS] Failed to parse message:', err);
+          console.error('[Surge WS] Failed to parse message:', err);
         }
       };
 
       ws.onclose = () => {
-        console.log('[SafeCrowd WS] Disconnected. Reconnecting in 3s...');
+        console.log('[Surge WS] Disconnected. Reconnecting in 3s...');
         setIsConnected(false);
         socketRef.current = null;
         reconnectTimeoutRef.current = window.setTimeout(() => {
@@ -54,11 +54,11 @@ export function useCrowdStream(
       };
 
       ws.onerror = (err) => {
-        console.warn('[SafeCrowd WS] Socket error:', err);
+        console.warn('[Surge WS] Socket error:', err);
         ws.close();
       };
     } catch (e) {
-      console.error('[SafeCrowd WS] Connection failed:', e);
+      console.error('[Surge WS] Connection failed:', e);
     }
   }, [url, onEvent]);
 

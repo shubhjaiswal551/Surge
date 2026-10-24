@@ -44,7 +44,7 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
 
   const postDispatchAudit = async (action: string, notes?: string) => {
     try {
-      const token = localStorage.getItem('safecrowd_token');
+      const token = localStorage.getItem('surge_token') || localStorage.getItem('safecrowd_token');
       await fetch(`${API_BASE_URL}/operations/dispatch`, {
         method: 'POST',
         headers: {
@@ -66,7 +66,7 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
   const handleExportSitrep = () => {
     const sitrepData = {
       generated_at: new Date().toISOString(),
-      venue: 'SafeCrowd Operations Command',
+      venue: 'Surge Operations Command',
       overall_risk_score: riskScore,
       risk_band: riskBand,
       target_priority_zone: `${targetName} (${targetCid})`,
@@ -89,7 +89,7 @@ export const OperationalDispatchHub: React.FC<OperationalDispatchHubProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `SafeCrowd_SitRep_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
+    a.download = `Surge_SitRep_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.json`;
     a.click();
     URL.revokeObjectURL(url);
     onDispatchAction('Downloaded Situation Report (JSON)');

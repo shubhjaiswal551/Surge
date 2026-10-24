@@ -1,5 +1,5 @@
 """
-SafeCrowd - Master Dataset Builder & Unifier
+Surge - Master Dataset Builder & Unifier
 1. Downloads VisDrone (elevated pedestrian & heads)
 2. Downloads MOT20 ground truth (dense terminal sequences)
 3. Synthesizes Top-Down Head Detection annotations from anatomical geometry & boxes
@@ -130,7 +130,7 @@ def convert_visdrone():
         print(f"    Added {count} VisDrone images to {split}.")
 
 def create_dataset_yaml():
-    yaml_content = f"""# SafeCrowd - High-Angle CCTV & Crowd Head Master Dataset
+    yaml_content = f"""# Surge - High-Angle CCTV & Crowd Head Master Dataset
 path: {DATASET_DIR.resolve().as_posix()}
 train: images/train
 val: images/val
@@ -146,7 +146,7 @@ names:
 
 if __name__ == "__main__":
     print("=" * 65)
-    print("SafeCrowd - Automated Multi-Dataset Builder")
+    print("Surge - Automated Multi-Dataset Builder")
     print("=" * 65)
     convert_visdrone()
     create_dataset_yaml()

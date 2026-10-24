@@ -1,5 +1,5 @@
 """
-SafeCrowd - Database Initializer
+Surge - Database Initializer
 Creates database tables and seeds default cameras and zones if not present.
 """
 
@@ -14,17 +14,17 @@ from app.models.db_models import CameraModel, ZoneModel, IncidentModel, UserMode
 from sqlalchemy import select
 
 async def init_db():
-    print("[SafeCrowd DB] Initializing database tables...")
+    print("[Surge DB] Initializing database tables...")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    print("[SafeCrowd DB] Tables verified/created successfully.")
+    print("[Surge DB] Tables verified/created successfully.")
 
     # Seed default cameras and zones if empty
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(CameraModel))
         existing_cams = result.scalars().all()
         if not existing_cams:
-            print("[SafeCrowd DB] Seeding initial cameras and zones...")
+            print("[Surge DB] Seeding initial cameras and zones...")
             cam1 = CameraModel(
                 id="cam-001",
                 name="Main Entrance Gate",
@@ -58,9 +58,9 @@ async def init_db():
             )
             session.add_all([zone1, zone2])
             await session.commit()
-            print("[SafeCrowd DB] Seed data populated.")
+            print("[Surge DB] Seed data populated.")
         else:
-            print(f"[SafeCrowd DB] Found {len(existing_cams)} existing cameras.")
+            print(f"[Surge DB] Found {len(existing_cams)} existing cameras.")
 
 if __name__ == "__main__":
     asyncio.run(init_db())

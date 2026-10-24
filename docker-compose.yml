@@ -4,18 +4,18 @@ services:
   # Database Service - PostgreSQL 15
   postgres:
     image: postgres:15-alpine
-    container_name: safecrowd-postgres
+    container_name: surge-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: safecrowd
-      POSTGRES_PASSWORD: safecrowd_secure_password
-      POSTGRES_DB: safecrowd
+      POSTGRES_USER: surge
+      POSTGRES_PASSWORD: surge_secure_password
+      POSTGRES_DB: surge
     ports:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U safecrowd -d safecrowd"]
+      test: ["CMD-SHELL", "pg_isready -U surge -d surge"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -23,7 +23,7 @@ services:
   # Queue & Cache Service - Redis 7
   redis:
     image: redis:7-alpine
-    container_name: safecrowd-redis
+    container_name: surge-redis
     restart: unless-stopped
     ports:
       - "6379:6379"
@@ -40,7 +40,7 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    container_name: safecrowd-backend
+    container_name: surge-backend
     restart: unless-stopped
     ports:
       - "8000:8000"
@@ -48,7 +48,7 @@ services:
       - PYTHONUNBUFFERED=1
       - PORT=8000
       - ENVIRONMENT=production
-      - DATABASE_URL=postgresql+asyncpg://safecrowd:safecrowd_secure_password@postgres:5432/safecrowd
+      - DATABASE_URL=postgresql+asyncpg://surge:surge_secure_password@postgres:5432/surge
       - REDIS_URL=redis://redis:6379/0
       - ALLOWED_ORIGINS=http://localhost,http://localhost:80,http://localhost:5173
     volumes:
@@ -72,7 +72,7 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: safecrowd-frontend
+    container_name: surge-frontend
     restart: unless-stopped
     ports:
       - "80:80"

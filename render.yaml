@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: safecrowd-backend
+    name: surge-backend
     env: docker
     dockerfilePath: backend/Dockerfile
     dockerContext: .
@@ -13,6 +13,6 @@ services:
       - key: DEMO_MODE
         value: "true"
       - key: ALLOWED_ORIGINS
-        value: "https://safecrowd.vercel.app"
+        value: "https://surge.vercel.app"
       - key: PORT
         value: "8000"
