@@ -54,9 +54,9 @@ ZONES_DB: Dict[str, Dict] = {
     "zone-004": {
         "id": "zone-004",
         "camera_id": "cam-004",
-        "name": "Central Plaza Courtyard",
+        "name": "Stadium Concourse (Dispersal Hallway)",
         "polygon_coords": [(4.0, 10.0), (96.0, 10.0), (96.0, 96.0), (4.0, 96.0)],
-        "area_sq_m": 70.0,
+        "area_sq_m": 85.0,
         "thresholds": {
             "density_high": 2.8,
             "density_critical": 4.5,

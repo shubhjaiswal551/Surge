@@ -45,7 +45,7 @@ const INITIAL_ZONE_AREAS: Record<string, number> = {
   'cam-001': 45.0,
   'cam-002': 60.0,
   'cam-003': 50.0,
-  'cam-004': 70.0,
+  'cam-004': 85.0,
 };
 
 const getInitialAlerts = (): Alert[] => [
@@ -147,6 +147,26 @@ const getInitialIncidents = (): Incident[] => [
       avg_speed: 0.9,
     },
   },
+  {
+    id: 'inc-004',
+    timestamp: new Date(Date.now() - 1000 * 60 * 25).toISOString(),
+    cameraId: 'cam-004',
+    zoneName: 'Stadium Concourse (Dispersal Hallway)',
+    alertType: 'Stadium Dispersal Surge',
+    severity: 'critical',
+    status: 'resolved',
+    acknowledgedBy: 'Control Room Operator',
+    resolvedAt: new Date(Date.now() - 1000 * 60 * 18).toISOString(),
+    notes: 'South turnstile gates 18A-18D fully engaged. Egress corridor clear.',
+    isFalsePositive: false,
+    timeWindow: { start: 2.0, end: 10.0, peak: 6.0 },
+    metrics_json: {
+      density: 4.1,
+      headcount: 124,
+      velocity_variance: 3.6,
+      avg_speed: 1.2,
+    },
+  },
 ];
 
 export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -243,7 +263,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                   ? 'Central Concourse (Multi-Directional)'
                   : item.zone_id === 'zone-003'
                   ? 'Main Terminal Gate (Dense Scramble)'
-                  : 'Central Plaza Courtyard',
+                  : 'Stadium Concourse (Dispersal Hallway)',
               alertType: item.event_type.charAt(0).toUpperCase() + item.event_type.slice(1) + ' Detected',
               severity: item.severity >= 4 ? 'critical' : item.severity === 3 ? 'high' : 'warning',
               status: item.resolved ? 'resolved' : item.acknowledged_at ? 'acknowledged' : 'open',
@@ -373,7 +393,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ? '/concourse_crossing.webm'
                 : ev.cameraId === 'cam-003'
                 ? '/12269404_2320_1080_30fps.mp4'
-                : '/5287069-sd_960_540_30fps.mp4',
+                : '/stadium_hallway_dispersal.mp4',
           };
 
           // Also mirror into incidents queue
@@ -712,7 +732,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             : targetCamId === 'cam-002'
             ? '/concourse_crossing.webm'
             : targetCamId === 'cam-004'
-            ? '/5287069-sd_960_540_30fps.mp4'
+            ? '/stadium_hallway_dispersal.mp4'
             : '/12269404_2320_1080_30fps.mp4'),
         metrics: custom?.metrics || {
           density: 4.1,

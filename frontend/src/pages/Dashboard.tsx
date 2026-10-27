@@ -63,9 +63,9 @@ const Dashboard: React.FC = () => {
       arr.push({
         t: `${hh}:${mm}:${ss}`,
         cam001: 22 + Math.round(Math.random() * 3),
-        cam002: 8 + Math.round(Math.random() * 2),
+        cam002: 68 + Math.round(Math.random() * 4),
         cam003: 185 + Math.round(Math.random() * 6),
-        cam004: 20 + Math.round(Math.random() * 3),
+        cam004: 112 + Math.round(Math.random() * 6),
       });
     }
     return arr;
@@ -80,9 +80,9 @@ const Dashboard: React.FC = () => {
       const ss = t.getSeconds().toString().padStart(2, '0');
 
       const c1 = cameras.find((c) => c.cameraId === 'cam-001')?.headcount ?? 22;
-      const c2 = cameras.find((c) => c.cameraId === 'cam-002')?.headcount ?? 8;
+      const c2 = cameras.find((c) => c.cameraId === 'cam-002')?.headcount ?? 68;
       const c3 = cameras.find((c) => c.cameraId === 'cam-003')?.headcount ?? 185;
-      const c4 = cameras.find((c) => c.cameraId === 'cam-004')?.headcount ?? 20;
+      const c4 = cameras.find((c) => c.cameraId === 'cam-004')?.headcount ?? 112;
 
       const nextPoint: HeadcountPoint = {
         t: `${hh}:${mm}:${ss}`,

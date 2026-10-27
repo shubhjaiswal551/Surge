@@ -4,11 +4,13 @@ import StatusBar from '../components/dashboard/StatusBar';
 import GoogleAuthModal from '../components/auth/GoogleAuthModal';
 import RubberSegment from '../components/ui/RubberSegment';
 import { useAuth } from '../context/AuthContext';
+import { useCrowdContext } from '../context/CrowdContext';
 
 type SettingsTab = 'all' | 'profile' | 'security' | 'notifications' | 'pipeline';
 
 const Settings: React.FC = () => {
   const { profile, authMode, disableGoogleAuth } = useAuth();
+  const { unacknowledgedAlertsCount } = useCrowdContext();
   const [activeTab, setActiveTab] = useState<SettingsTab>('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [disabling, setDisabling] = useState(false);
@@ -35,7 +37,7 @@ const Settings: React.FC = () => {
     <div className="h-screen w-screen flex overflow-hidden bg-[#f5f5f7]">
       <Sidebar />
       <div className="flex-1 flex flex-col min-w-0">
-        <StatusBar activeAlertCount={0} />
+        <StatusBar activeAlertCount={unacknowledgedAlertsCount} />
 
         <main className="flex-1 overflow-y-auto min-h-0">
           <div className="px-6 py-5 max-w-3xl space-y-5">

@@ -32,10 +32,10 @@ const CAMERAS = [
   },
   {
     cameraId: 'cam-004',
-    zoneName: 'Central Plaza Courtyard',
-    description: 'Outdoor courtyard convergence',
-    rtspUrl: '/5287069-sd_960_540_30fps.mp4',
-    areaSqM: 70.0,
+    zoneName: 'Stadium Concourse (Dispersal Hallway)',
+    description: 'South Stadium Concourse · Turnstile Gate 18',
+    rtspUrl: '/stadium_hallway_dispersal.mp4',
+    areaSqM: 85.0,
   },
 ];
 
@@ -43,10 +43,16 @@ export const CALIBRATED_TIME_WINDOWS: Record<string, { start: number; end: numbe
   'cam-001': { start: 3.8, end: 9.2, peak: 6.2 },
   'cam-002': { start: 2.8, end: 8.2, peak: 5.4 },
   'cam-003': { start: 2.2, end: 7.5, peak: 4.8 },
-  'cam-004': { start: 1.8, end: 6.2, peak: 3.8 },
+  'cam-004': { start: 2.0, end: 10.0, peak: 6.0 },
 };
 
 export const ANOMALY_ROTATION = [
+  {
+    camera: 'cam-004',
+    type: 'Stadium Dispersal Surge',
+    severity: 'critical' as AlertSeverity,
+    window: CALIBRATED_TIME_WINDOWS['cam-004'],
+  },
   {
     camera: 'cam-003',
     type: 'Crowd Surge Detected',
@@ -92,10 +98,10 @@ function densityFromCameraHeadcount(cameraId: string, hc: number): DensityLevel 
     if (hc < 80) return 'high';
     return 'critical';
   }
-  // cam-004 default
-  if (hc < 15) return 'low';
-  if (hc < 25) return 'moderate';
-  if (hc < 35) return 'high';
+  // cam-004 stadium concourse dispersal
+  if (hc < 80) return 'low';
+  if (hc < 105) return 'moderate';
+  if (hc < 130) return 'high';
   return 'critical';
 }
 
@@ -141,8 +147,8 @@ interface SimulatorState {
 }
 
 const state: SimulatorState = {
-  headcounts: { 'cam-001': 22, 'cam-002': 68, 'cam-003': 185, 'cam-004': 20 },
-  flows: { 'cam-001': 85, 'cam-002': 260, 'cam-003': 110, 'cam-004': 195 },
+  headcounts: { 'cam-001': 22, 'cam-002': 68, 'cam-003': 185, 'cam-004': 112 },
+  flows: { 'cam-001': 85, 'cam-002': 260, 'cam-003': 110, 'cam-004': 295 },
   nextAnomalyAt: Date.now() + 25_000 + Math.random() * 15_000,
   activeAnomalyCamera: null,
   activeAnomalyEndsAt: 0,
@@ -184,8 +190,8 @@ function tick() {
       minCount = 165;
       maxCount = 215;
     } else if (cid === 'cam-004') {
-      minCount = 15;
-      maxCount = 26;
+      minCount = 88;
+      maxCount = 145;
     }
 
     let next = clamp(prev + drift, minCount, maxCount);

@@ -34,9 +34,9 @@ async def init_db():
             )
             cam2 = CameraModel(
                 id="cam-002",
-                name="Central Courtyard Concourse",
-                rtsp_url="frontend/public/5287069-sd_960_540_30fps.mp4",
-                location="Central Plaza Zone B",
+                name="Stadium Concourse (Dispersal Hallway)",
+                rtsp_url="frontend/public/stadium_hallway_dispersal.mp4",
+                location="South Stadium Concourse · Turnstile Gate 18",
                 is_active=True,
             )
             session.add_all([cam1, cam2])

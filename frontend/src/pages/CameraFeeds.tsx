@@ -29,6 +29,12 @@ type SortOption = 'default' | 'headcount_desc' | 'headcount_asc' | 'name';
 
 function cleanVideoUrl(url?: string, _cameraId?: string): string {
   if (!url) return '';
+  if (_cameraId === 'cam-004' && (url.includes('5287069') || url.includes('plaza') || !url)) {
+    return '/stadium_hallway_dispersal.mp4';
+  }
+  if (url.includes('5287069')) {
+    return '/stadium_hallway_dispersal.mp4';
+  }
   let cleaned = url.replace(/^frontend\/public\//, '/').replace(/^public\//, '/');
   if (cleaned.startsWith('rtsp://') || cleaned.startsWith('http://') || cleaned.startsWith('https://')) {
     return cleaned;
@@ -43,7 +49,7 @@ const getCameraArea = (cid: string): number => {
   if (cid === 'cam-001') return 45.0;
   if (cid === 'cam-002') return 60.0;
   if (cid === 'cam-003') return 50.0;
-  return 70.0;
+  return 85.0;
 };
 
 const CameraFeeds: React.FC = () => {
@@ -116,13 +122,21 @@ const CameraFeeds: React.FC = () => {
             setCameras((prev) => {
               return data.map((bCam: any) => {
                 const existing = prev.find((p) => p.cameraId === bCam.id);
+                const isCam4 = bCam.id === 'cam-004';
+                const zoneName = isCam4 && (bCam.name?.includes('Plaza') || !bCam.name)
+                  ? 'Stadium Concourse (Dispersal Hallway)'
+                  : (bCam.name || bCam.location || 'Surveillance Zone');
+                const description = isCam4 && (bCam.location?.includes('Plaza') || !bCam.location)
+                  ? 'South Stadium Concourse · Turnstile Gate 18'
+                  : (bCam.location || 'Optical RTSP Endpoint');
+
                 return {
                   cameraId: bCam.id,
-                  zoneName: bCam.name || bCam.location || 'Surveillance Zone',
-                  description: bCam.location || 'Optical RTSP Endpoint',
-                  headcount: existing?.headcount ?? 45,
-                  density: existing?.density ?? 'low',
-                  flowDirection: existing?.flowDirection ?? 90,
+                  zoneName,
+                  description,
+                  headcount: existing?.headcount ?? (isCam4 ? 112 : 45),
+                  density: existing?.density ?? (isCam4 ? 'high' : 'low'),
+                  flowDirection: existing?.flowDirection ?? (isCam4 ? 270 : 90),
                   lastUpdated: existing?.lastUpdated ?? new Date().toISOString(),
                   lastUpdatedAgo: existing?.lastUpdatedAgo ?? 0,
                   rtspUrl: cleanVideoUrl(bCam.rtsp_url, bCam.id),
@@ -236,7 +250,7 @@ const CameraFeeds: React.FC = () => {
             : ev.cameraId === 'cam-002'
             ? { start: 2.8, end: 8.2, peak: 5.4 }
             : ev.cameraId === 'cam-004'
-            ? { start: 1.8, end: 6.2, peak: 3.8 }
+            ? { start: 2.0, end: 10.0, peak: 6.0 }
             : { start: 2.2, end: 7.5, peak: 4.8 });
 
         const newAlert: Alert = {
@@ -504,6 +518,8 @@ const CameraFeeds: React.FC = () => {
         ? 'Critical Funnel Chokepoint Bottleneck'
         : camera.zoneName.includes('Dense Scramble')
         ? 'High-Density Surge Compression'
+        : camera.zoneName.includes('Dispersal') || camera.zoneName.includes('Stadium')
+        ? 'Stadium Dispersal Egress Surge'
         : 'Live Surveillance Forensic Inspection',
       severity: isCritical ? 'critical' : isHigh ? 'high' : 'warning',
       numericSeverity: isCritical ? 5 : isHigh ? 4 : 3,

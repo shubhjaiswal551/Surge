@@ -35,9 +35,9 @@ CAMERAS_DB: Dict[str, Dict] = {
     },
     "cam-004": {
         "id": "cam-004",
-        "name": "Central Plaza Courtyard",
-        "rtsp_url": "/5287069-sd_960_540_30fps.mp4",
-        "location": "Central Plaza Zone B",
+        "name": "Stadium Concourse (Dispersal Hallway)",
+        "rtsp_url": "/stadium_hallway_dispersal.mp4",
+        "location": "South Stadium Concourse · Turnstile Gate 18",
         "is_active": True,
     },
 }
@@ -131,7 +131,7 @@ async def get_camera_telemetry(
         "cam-001": ["telemetry_corridor.json"],
         "cam-002": ["telemetry_concourse.json"],
         "cam-003": ["telemetry_terminal.json", "telemetry_cam001.json"],
-        "cam-004": ["telemetry_plaza.json", "telemetry_cam002.json"],
+        "cam-004": ["telemetry_stadium.json", "telemetry_plaza.json", "telemetry_cam002.json"],
     }
     candidates = mapping.get(camera_id, [])
 
@@ -143,6 +143,9 @@ async def get_camera_telemetry(
         candidates.insert(0, "telemetry_concourse.json")
     elif "12269404" in rtsp:
         candidates.insert(0, "telemetry_terminal.json")
+    elif "stadium" in rtsp:
+        candidates.insert(0, "telemetry_stadium.json")
+        candidates.insert(1, "telemetry_plaza.json")
     elif "5287069" in rtsp:
         candidates.insert(0, "telemetry_plaza.json")
 

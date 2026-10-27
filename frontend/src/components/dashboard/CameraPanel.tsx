@@ -183,6 +183,12 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
     if (videoError || !videoSrc) return '';
 
     let s = videoSrc.replace(/^frontend\/public\//, '/').replace(/^public\//, '/');
+    if (cameraId === 'cam-004' && (s.includes('5287069') || s.includes('plaza') || !s)) {
+      return '/stadium_hallway_dispersal.mp4';
+    }
+    if (s.includes('5287069')) {
+      return '/stadium_hallway_dispersal.mp4';
+    }
     if (s.startsWith('rtsp://') || s.startsWith('http://') || s.startsWith('https://')) {
       return s;
     }
@@ -190,7 +196,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
       s = '/' + s;
     }
     return s;
-  }, [videoSrc, videoError]);
+  }, [videoSrc, videoError, cameraId]);
 
   // Dynamic AI-detected headcount if telemetry is present
   const [dynamicAiCount, setDynamicAiCount] = useState<number | null>(null);
@@ -310,8 +316,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
       candidates.push('/telemetry_concourse.json');
     } else if (effectiveVideoSrc.includes('12269404') || cameraId === 'cam-003') {
       candidates.push('/telemetry_terminal.json', '/telemetry_cam001.json');
-    } else if (effectiveVideoSrc.includes('5287069') || cameraId === 'cam-004') {
-      candidates.push('/telemetry_plaza.json', '/telemetry_cam002.json');
+    } else if (effectiveVideoSrc.includes('5287069') || effectiveVideoSrc.includes('stadium') || cameraId === 'cam-004') {
+      candidates.push('/telemetry_stadium.json', '/telemetry_plaza.json', '/telemetry_cam002.json');
     }
 
     // Direct endpoints and general fallbacks
@@ -486,44 +492,65 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
               const interpolated: typeof currentBoxes = [];
               const matchedIds = new Set<number>();
+              const MAX_TRACK_JUMP = 6.5; // Max plausible % displacement between adjacent keyframes (~0.08s)
 
               for (const b0 of kf0.boxes || []) {
                 if (!b0.w || !b0.h || b0.w <= 0 || b0.h <= 0 || b0.w > b0.h * 2.0) {
                   continue;
                 }
-                matchedIds.add(b0.id);
 
-                const b1 = (kf1.boxes || []).find((b) => b.id === b0.id);
+                const candidateB1 = (kf1.boxes || []).find((b) => b.id === b0.id);
                 const c0 = b0.conf ?? 50;
-                if (b1) {
-                  // Continuous 60fps tracking across keyframes
-                  const c1 = b1.conf ?? c0;
+
+                // Spatial continuity check: verify candidate is the same physical individual (not a reassigned ID)
+                let isValidContinuity = false;
+                if (candidateB1) {
+                  const dx = candidateB1.x - b0.x;
+                  const dy = candidateB1.y - b0.y;
+                  const jumpDist = Math.hypot(dx, dy);
+                  const sizeRatio = Math.max(b0.w / Math.max(1, candidateB1.w), candidateB1.w / Math.max(1, b0.w));
+                  if (jumpDist <= MAX_TRACK_JUMP && sizeRatio < 2.5) {
+                    isValidContinuity = true;
+                  }
+                }
+
+                if (candidateB1 && isValidContinuity) {
+                  matchedIds.add(b0.id);
+                  const c1 = candidateB1.conf ?? c0;
                   interpolated.push({
-                    x: b0.x + (b1.x - b0.x) * factor,
-                    y: b0.y + (b1.y - b0.y) * factor,
-                    w: b0.w + (b1.w - b0.w) * factor,
-                    h: b0.h + (b1.h - b0.h) * factor,
+                    x: b0.x + (candidateB1.x - b0.x) * factor,
+                    y: b0.y + (candidateB1.y - b0.y) * factor,
+                    w: b0.w + (candidateB1.w - b0.w) * factor,
+                    h: b0.h + (candidateB1.h - b0.h) * factor,
                     label: `${b0.label} · ${Math.round(c0 + (c1 - c0) * factor)}%`,
-                    isAnomaly: !!(b0.isAnomaly || b1.isAnomaly),
+                    isAnomaly: !!(b0.isAnomaly || candidateB1.isAnomaly),
                     opacity: 1.0,
                   });
                 } else {
-                  // Graceful fade out when person leaves frame or is occluded
+                  // Person went out of sight or tracker reassigned their ID elsewhere.
+                  // Fade out in place or gently exit towards the nearest boundary (NEVER slide across the screen).
                   if (factor < 0.5) {
+                    let exitDriftX = 0;
+                    let exitDriftY = 0;
+                    if (b0.x < 10) exitDriftX = -factor * 6; // exiting left
+                    else if (b0.x + b0.w > 90) exitDriftX = factor * 6; // exiting right
+                    if (b0.y < 10) exitDriftY = -factor * 6; // exiting top
+                    else if (b0.y + b0.h > 90) exitDriftY = factor * 6; // exiting bottom
+
                     interpolated.push({
-                      x: b0.x,
-                      y: b0.y,
+                      x: b0.x + exitDriftX,
+                      y: b0.y + exitDriftY,
                       w: b0.w,
                       h: b0.h,
                       label: `${b0.label} · ${c0}%`,
                       isAnomaly: !!b0.isAnomaly,
-                      opacity: 1.0 - (factor / 0.5),
+                      opacity: Math.max(0, 1.0 - (factor / 0.5)),
                     });
                   }
                 }
               }
 
-              // Newly appeared person in kf1: graceful fade in
+              // Newly appeared person in kf1: appears / fades in directly on newly detected person
               for (const b1 of kf1.boxes || []) {
                 if (matchedIds.has(b1.id)) continue;
                 if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) {

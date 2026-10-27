@@ -72,6 +72,9 @@ def process_video(
 
     timeline = []
     frame_idx = 0
+    last_known_pos = {}
+    track_remap = {}
+    next_clean_id = 10000
 
     while frame_idx < total_frames:
         ret, frame = cap.read()
@@ -93,11 +96,26 @@ def process_video(
             if (x_pct + w_pct) < -1.0 or x_pct > 101.0:
                 continue
 
+            raw_id = int(t["track_id"])
+            curr_id = track_remap.get(raw_id, raw_id)
+            cur_x = max(0.0, min(100.0, x_pct))
+            cur_y = max(0.0, min(100.0, y_pct))
+
+            # If track jumped across the screen by > 6.5%, assign fresh ID
+            if curr_id in last_known_pos:
+                px, py = last_known_pos[curr_id]
+                jump = ((cur_x - px) ** 2 + (cur_y - py) ** 2) ** 0.5
+                if jump > 6.5:
+                    next_clean_id += 1
+                    curr_id = next_clean_id
+                    track_remap[raw_id] = curr_id
+            last_known_pos[curr_id] = (cur_x, cur_y)
+
             active_boxes.append({
-                "id": int(t["track_id"]),
-                "label": f"#{int(t['track_id']):02d}",
-                "x": max(0.0, min(100.0, x_pct)),
-                "y": max(0.0, min(100.0, y_pct)),
+                "id": curr_id,
+                "label": f"#{curr_id % 1000:02d}",
+                "x": cur_x,
+                "y": cur_y,
                 "w": round(w_pct, 2),
                 "h": round(h_pct, 2),
                 "conf": int(round(float(t.get("confidence", 0.5)) * 100)),
@@ -153,13 +171,13 @@ def main():
         sample_interval=2,
     )
 
-    # Process Camera 4: Central Plaza Courtyard
+    # Process Camera 4: Stadium Concourse Dispersal Hallway
     process_video(
-        video_path=Path("frontend/public/5287069-sd_960_540_30fps.mp4"),
-        out_filenames=["telemetry_plaza.json", "telemetry_cam002.json"],
+        video_path=Path("frontend/public/stadium_hallway_dispersal.mp4"),
+        out_filenames=["telemetry_plaza.json", "telemetry_stadium.json", "telemetry_cam002.json"],
         camera_id="cam-004",
         weights_path=best_demo_weights,
-        conf_threshold=0.10,
+        conf_threshold=0.14,
         sample_interval=2,
     )
 

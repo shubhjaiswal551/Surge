@@ -183,6 +183,15 @@ const LoginForm: React.FC<LoginFormProps> = () => {
       >
         {loading ? 'Signing in…' : 'Log In'}
       </button>
+
+      <button
+        type="button"
+        onClick={() => signInDemo('Lead Operator')}
+        className="w-full py-2 px-3 rounded-xl border border-slate-200/90 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-2xs hover:shadow-xs active:scale-[0.98]"
+      >
+        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+        Instant Demo Access (Lead Operator)
+      </button>
     </form>
   );
 };
