@@ -239,7 +239,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
               });
             }
 
-            // 2. Entering tracks in kf1
+            // 2. Freshly entering tracks in kf1
             for (const b1 of kf1Boxes) {
               if (processedIds.has(b1.id)) continue;
               if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0) continue;
@@ -267,7 +267,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             candidateBoxes.sort((a, b) => a.dist - b.dist);
             currentBoxes = [primaryBox, ...candidateBoxes];
           } else {
-            // Fallback calibrated tracks
+            // Fallback calibrated base tracks
             const clipDuration = duration > 0 ? duration : 11.5;
             const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
             const personBoxes = baseTracks
@@ -987,9 +987,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-md animate-fade-in">
-      <div className="relative w-full max-w-5xl rounded-3xl bg-white/95 backdrop-blur-2xl border border-white/80 shadow-floating overflow-hidden flex flex-col max-h-[92vh]">
+      <div className="relative w-full max-w-5xl rounded-3xl bg-white/95 backdrop-blur-2xl border border-white/80 shadow-floating overflow-hidden flex flex-col max-h-[94vh]">
         {/* Modal Header */}
-        <div className="flex items-center justify-between px-6 py-3.5 border-b border-slate-100 bg-white/80 shrink-0">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-white/80 shrink-0">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5 shrink-0">
               <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
@@ -1016,10 +1016,18 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           </button>
         </div>
 
-        {/* Modal Body: Single-Column Layout with auto-fitted video height (Scrubber always 100% visible!) */}
-        <div className="p-5 space-y-3.5 overflow-y-auto">
-          {/* Evidence Video Canvas with Computer Vision Overlays */}
-          <div className="relative aspect-[16/9] max-h-[52vh] w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-md select-none group mx-auto">
+        {/* Modal Body: Main Video as Hero, Rest Below */}
+        <div className="p-4 sm:p-5 space-y-5 overflow-y-auto">
+          {/* Evidence Video Canvas - Main Focus of Modal (True 16:9, Scaled to Fit Viewport) */}
+          <div className="w-full flex justify-center">
+            <div
+              className="relative w-full rounded-2xl overflow-hidden bg-slate-950 border border-slate-200/80 shadow-md select-none group"
+              style={{
+                aspectRatio: '16 / 9',
+                maxHeight: 'calc(90vh - 145px)',
+                maxWidth: 'calc((90vh - 145px) * 16 / 9)',
+              }}
+            >
             {videoSrc.match(/\.(jpeg|jpg|png|webp)($|\?)/i) ? (
               <img
                 src={videoSrc.startsWith('/snapshots/') ? `${API_BASE_URL}${videoSrc}` : videoSrc}
@@ -1311,6 +1319,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               onJumpToPeak={handleJumpToPeak}
             />
           </div>
+        </div>
 
           {actionSuccess && (
             <div className="p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
@@ -1558,7 +1567,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-white/80 flex flex-wrap items-center justify-between gap-3 shrink-0">
+        <div className="px-5 py-3 border-t border-slate-100 bg-white/80 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
           <div className="text-xs text-slate-400 font-medium">
             {alert.acknowledgedBy ? `Handled by ${alert.acknowledgedBy}` : 'Awaiting Operator Triage'}
           </div>
