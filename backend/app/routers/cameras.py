@@ -114,3 +114,45 @@ async def get_camera_telemetry_history(
     sec = window_sec_map.get(window, 900)
     history = stream_worker.get_telemetry_history(camera_id, window_seconds=sec)
     return history
+
+@router.get("/{camera_id}/telemetry")
+async def get_camera_telemetry(
+    camera_id: str,
+):
+    """Returns AI crowd tracking telemetry timeline (bounding boxes, trajectories) for the requested camera."""
+    if camera_id not in CAMERAS_DB:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    import os, json
+    repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    pub_dir = os.path.join(repo_root, "frontend", "public")
+
+    mapping = {
+        "cam-001": ["telemetry_corridor.json"],
+        "cam-002": ["telemetry_concourse.json"],
+        "cam-003": ["telemetry_terminal.json", "telemetry_cam001.json"],
+        "cam-004": ["telemetry_plaza.json", "telemetry_cam002.json"],
+    }
+    candidates = mapping.get(camera_id, [])
+
+    cam = CAMERAS_DB[camera_id]
+    rtsp = cam.get("rtsp_url", "")
+    if "corridor" in rtsp:
+        candidates.insert(0, "telemetry_corridor.json")
+    elif "concourse" in rtsp:
+        candidates.insert(0, "telemetry_concourse.json")
+    elif "12269404" in rtsp:
+        candidates.insert(0, "telemetry_terminal.json")
+    elif "5287069" in rtsp:
+        candidates.insert(0, "telemetry_plaza.json")
+
+    for c in candidates:
+        fp = os.path.join(pub_dir, c)
+        if os.path.exists(fp):
+            try:
+                with open(fp, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+
+    return {"cameraId": camera_id, "duration": 15.0, "timeline": []}

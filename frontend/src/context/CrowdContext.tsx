@@ -58,6 +58,7 @@ const getInitialAlerts = (): Alert[] => [
     timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
     acknowledged: false,
     snapshotUrl: '/12269404_2320_1080_30fps.mp4',
+    timeWindow: { start: 2.2, end: 7.5, peak: 4.8 },
     metrics: {
       density: 3.7,
       flow_vector: [0.1, 0.9],
@@ -77,6 +78,7 @@ const getInitialAlerts = (): Alert[] => [
     acknowledged: true,
     acknowledgedBy: 'Control Room Operator',
     snapshotUrl: '/concourse_crossing.webm',
+    timeWindow: { start: 2.8, end: 8.2, peak: 5.4 },
     metrics: {
       density: 2.4,
       flow_vector: [0.2, 0.0],
@@ -101,6 +103,7 @@ const getInitialIncidents = (): Incident[] => [
     resolvedAt: '2026-10-01T08:25:00Z',
     notes: 'Security dispatched to open overflow turnstiles. Flow normalized.',
     isFalsePositive: false,
+    timeWindow: { start: 3.8, end: 9.2, peak: 6.2 },
     metrics_json: {
       density: 4.2,
       headcount: 78,
@@ -119,6 +122,7 @@ const getInitialIncidents = (): Incident[] => [
     acknowledgedBy: 'Control Room Operator',
     notes: 'Directional lane partition deployed. Monitoring throughput.',
     isFalsePositive: false,
+    timeWindow: { start: 2.8, end: 8.2, peak: 5.4 },
     metrics_json: {
       density: 3.8,
       headcount: 65,
@@ -135,6 +139,7 @@ const getInitialIncidents = (): Incident[] => [
     severity: 'high',
     status: 'open',
     isFalsePositive: false,
+    timeWindow: { start: 2.2, end: 7.5, peak: 4.8 },
     metrics_json: {
       density: 3.7,
       headcount: 185,
@@ -342,6 +347,15 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           // Audio alarm triggers ONLY for genuine incoming alerts
           playChime(mappedSev);
 
+          const calibratedWindow =
+            ev.cameraId === 'cam-001'
+              ? { start: 3.8, end: 9.2, peak: 6.2 }
+              : ev.cameraId === 'cam-002'
+              ? { start: 2.8, end: 8.2, peak: 5.4 }
+              : ev.cameraId === 'cam-004'
+              ? { start: 1.8, end: 6.2, peak: 3.8 }
+              : { start: 2.2, end: 7.5, peak: 4.8 };
+
           const newAlert: Alert = {
             id: alertId,
             cameraId: ev.cameraId,
@@ -351,6 +365,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             timestamp: ev.timestamp || new Date().toISOString(),
             acknowledged: false,
             metrics: ev.metrics,
+            timeWindow: calibratedWindow,
             snapshotUrl:
               ev.cameraId === 'cam-001'
                 ? '/corridor_chokepoint.webm'
@@ -372,6 +387,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             status: 'open',
             isFalsePositive: false,
             metrics_json: ev.metrics,
+            timeWindow: calibratedWindow,
           };
           setIncidents((incPrev) => [newIncident, ...incPrev].slice(0, 150));
 
@@ -670,6 +686,16 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const sev = custom?.severity || 'high';
       playChime(sev);
 
+      const calibratedWindow =
+        custom?.timeWindow ||
+        (targetCamId === 'cam-001'
+          ? { start: 3.8, end: 9.2, peak: 6.2 }
+          : targetCamId === 'cam-002'
+          ? { start: 2.8, end: 8.2, peak: 5.4 }
+          : targetCamId === 'cam-004'
+          ? { start: 1.8, end: 6.2, peak: 3.8 }
+          : { start: 2.2, end: 7.5, peak: 4.8 });
+
       const newAlert: Alert = {
         id: newAlertId,
         cameraId: targetCamId,
@@ -678,6 +704,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         severity: sev,
         timestamp: new Date(now).toISOString(),
         acknowledged: false,
+        timeWindow: calibratedWindow,
         snapshotUrl:
           custom?.snapshotUrl ||
           (targetCamId === 'cam-001'
@@ -709,6 +736,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         status: 'open',
         isFalsePositive: false,
         metrics_json: newAlert.metrics,
+        timeWindow: calibratedWindow,
       };
       setIncidents((prev) => [newIncident, ...prev].slice(0, 150));
     },

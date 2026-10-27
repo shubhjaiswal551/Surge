@@ -251,12 +251,31 @@ class StreamWorker:
                         except Exception as n_err:
                             logger.warning(f"Notification error: {n_err}")
 
+                # Generate synthetic live tracked boxes matching simulated headcount
+                sim_boxes = []
+                box_count = min(headcount, 28)
+                for bi in range(box_count):
+                    bx = ((bi * 19 + tick * 2) % 84) + 6.0
+                    by = ((bi * 29 + tick * 1) % 68) + 18.0
+                    sim_boxes.append({
+                        "id": bi + 1,
+                        "label": f"#{bi + 1:02d}",
+                        "x": round(bx, 2),
+                        "y": round(by, 2),
+                        "w": round(4.5 + (bi % 3) * 0.8, 2),
+                        "h": round(15.0 + (bi % 4) * 1.8, 2),
+                        "conf": 84 + (bi % 15),
+                        "cls": 0,
+                        "isAnomaly": is_anomaly and (bi < 2),
+                    })
+
                 payload = {
                     "camera_id": cam_key,
                     "zone_id": stream["zone_id"],
                     "event_type": event_type or "normal",
                     "severity": severity,
                     "detected_at": now_iso,
+                    "boxes": sim_boxes,
                     "metrics": {
                         "density": density_val,
                         "flow_vector": list(flow_vec),

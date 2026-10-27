@@ -45,6 +45,7 @@ export type CrowdEvent = {
   zone_id?: string;
   event_type?: string;
   metrics?: MetricsData;
+  timeWindow?: { start: number; end: number; peak: number };
   boxes?: Array<{
     id: number;
     x: number;
@@ -81,6 +82,7 @@ export type Alert = {
   // schema.md fields
   numericSeverity?: number;
   metrics?: MetricsData;
+  timeWindow?: { start: number; end: number; peak: number };
 };
 
 export type Incident = {
@@ -97,6 +99,7 @@ export type Incident = {
   isFalsePositive?: boolean;
   metrics_json?: any;
   metrics?: MetricsData;
+  timeWindow?: { start: number; end: number; peak: number };
 };
 
 export type UserProfile = {
@@ -133,6 +136,7 @@ export type CameraState = {
   areaSqM?: number;
   polygonCoords?: [number, number][];
   metrics?: MetricsData;
+  timeWindow?: { start: number; end: number; peak: number };
   boxes?: Array<{
     id: number;
     x: number;

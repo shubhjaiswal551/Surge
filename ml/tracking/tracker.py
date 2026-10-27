@@ -195,11 +195,12 @@ class RobustCrowdTracker:
     Associates tracks using normalized centroid distance + IoU cost matrix,
     retaining identity persistence across occlusions without track ID churn.
     """
-    def __init__(self, max_lost: int = 25, dist_thresh_factor: float = 1.6):
+    def __init__(self, max_lost: int = 25, dist_thresh_factor: float = 1.6, init_conf: float = 0.12):
         self.tracks: Dict[int, RobustTrack] = {}
         self.next_id = 1
         self.max_lost = max_lost
         self.dist_thresh_factor = dist_thresh_factor
+        self.init_conf = init_conf
 
     def update(
         self,
@@ -258,7 +259,7 @@ class RobustCrowdTracker:
         # 3. Initialize new tracks for unmatched confident detections
         for j, (dbox, conf) in enumerate(zip(det_boxes, det_confs)):
             if j not in matched_det_indices:
-                if conf >= 0.18:
+                if conf >= self.init_conf:
                     tid = self.next_id
                     self.next_id += 1
                     self.tracks[tid] = RobustTrack(tid, dbox, conf)
@@ -310,7 +311,7 @@ class ByteTrackPipeline:
         self.iou = iou_threshold or CONFIG["iou_threshold"]
         self.imgsz = imgsz or CONFIG["imgsz"]
         self.device = device or ("0" if torch.cuda.is_available() else "cpu")
-        self.tracker = RobustCrowdTracker(max_lost=25)
+        self.tracker = RobustCrowdTracker(max_lost=25, init_conf=min(self.conf, 0.14))
 
         logger.info(f"Initializing ByteTrackPipeline with weights={path} on device={self.device}")
         self.model = YOLO(path)
@@ -333,7 +334,7 @@ class ByteTrackPipeline:
             iou=self.iou,
             imgsz=self.imgsz,
             max_det=1000,
-            classes=[0, 1], # Detect BOTH full bodies and heads
+            classes=[0, 1] if len(getattr(self.model, "names", {})) > 1 else [0],
             device=self.device,
             verbose=False,
         )[0]

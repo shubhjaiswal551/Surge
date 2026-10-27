@@ -1,14 +1,14 @@
 """
 Surge - High-Density AI Telemetry Generator
 Generates persistent, presentation-ready crowd tracking timelines for camera video feeds
-using the master dual-class YOLOv8s model + head-body fusion + spatial-velocity persistence.
+using YOLOv8 + ByteTrack trajectory persistence with 16:9 viewport projection.
 """
 
 import os
 import sys
 import json
 from pathlib import Path
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Union
 
 # Ensure project root is in sys.path
 repo_root = Path(__file__).resolve().parent.parent
@@ -21,12 +21,18 @@ from ml.tracking.tracker import ByteTrackPipeline
 
 def process_video(
     video_path: Path,
-    out_filename: str,
+    out_filenames: Union[str, List[str]],
     camera_id: str,
     weights_path: str,
+    conf_threshold: float = 0.12,
+    sample_interval: int = 2,
 ):
+    if isinstance(out_filenames, str):
+        out_filenames = [out_filenames]
+
     print(f"\n==================================================")
-    print(f"Processing {video_path.name} -> {out_filename}")
+    print(f"Processing {video_path.name} -> {out_filenames}")
+    print(f"Weights: {weights_path} | Conf: {conf_threshold}")
     print(f"==================================================")
 
     if not video_path.exists():
@@ -38,26 +44,35 @@ def process_video(
         print(f"Error: Could not open {video_path}. Skipping.")
         return
 
-    fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
+    fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
     frame_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     frame_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     duration = round(total_frames / fps, 2)
 
+    ar = frame_w / frame_h
+    # Viewport 16:9 projection: if aspect ratio > 1.8 (e.g. 2320x1080 = 2.148),
+    # object-cover in CSS trims horizontal borders. Calibrate coordinates to the 16:9 visible viewport!
+    if ar > 1.8:
+        target_w = frame_h * (16.0 / 9.0)
+        crop_x = (frame_w - target_w) / 2.0
+        print(f"Ultra-wide aspect {ar:.2f}: calibrated 16:9 projection active (cropX={crop_x:.1f}px, visibleWidth={target_w:.1f}px)")
+    else:
+        target_w = float(frame_w)
+        crop_x = 0.0
+
     print(f"Video {frame_w}x{frame_h} @ {fps:.1f} FPS | Total frames: {total_frames} ({duration}s)")
 
-    # Initialize tracker pipeline with dual-class fusion and spatial-velocity tracking
     pipeline = ByteTrackPipeline(
         weights_path=weights_path,
-        conf_threshold=0.14,
+        conf_threshold=conf_threshold,
         iou_threshold=0.45,
         imgsz=960,
     )
 
     timeline = []
-    sample_interval = 2  # 12.5 FPS keyframes for silky smooth canvas rendering
-
     frame_idx = 0
+
     while frame_idx < total_frames:
         ret, frame = cap.read()
         if not ret:
@@ -69,13 +84,22 @@ def process_video(
         active_boxes = []
         for t in trajectories:
             bx1, by1, bx2, by2 = t["bbox"]
+            x_pct = round(((bx1 - crop_x) / target_w) * 100.0, 2)
+            y_pct = round((by1 / frame_h) * 100.0, 2)
+            w_pct = round(((bx2 - bx1) / target_w) * 100.0, 2)
+            h_pct = round(((by2 - by1) / frame_h) * 100.0, 2)
+
+            # Prune boxes completely cropped out by object-cover
+            if (x_pct + w_pct) < -1.0 or x_pct > 101.0:
+                continue
+
             active_boxes.append({
                 "id": int(t["track_id"]),
                 "label": f"#{int(t['track_id']):02d}",
-                "x": round((float(bx1) / frame_w) * 100.0, 2),
-                "y": round((float(by1) / frame_h) * 100.0, 2),
-                "w": round(((float(bx2) - float(bx1)) / frame_w) * 100.0, 2),
-                "h": round(((float(by2) - float(by1)) / frame_h) * 100.0, 2),
+                "x": max(0.0, min(100.0, x_pct)),
+                "y": max(0.0, min(100.0, y_pct)),
+                "w": round(w_pct, 2),
+                "h": round(h_pct, 2),
                 "conf": int(round(float(t.get("confidence", 0.5)) * 100)),
                 "cls": int(t.get("cls", 0)),
                 "isAnomaly": False,
@@ -87,8 +111,8 @@ def process_video(
                 "boxes": active_boxes,
             })
 
-        if frame_idx % 100 == 0:
-            print(f"  Frame {frame_idx:04d}/{total_frames} ({frame_idx/fps:.1f}s): {len(active_boxes)} persistent active tracks")
+        if frame_idx % 50 == 0 or frame_idx == total_frames - 1:
+            print(f"  Frame {frame_idx:04d}/{total_frames} ({frame_idx/fps:.1f}s): {len(active_boxes)} active tracks")
 
         frame_idx += 1
 
@@ -100,37 +124,43 @@ def process_video(
         "timeline": timeline,
     }
 
-    out_pub = Path("frontend/public") / out_filename
-    out_dist = Path("frontend/dist") / out_filename
+    for fname in out_filenames:
+        out_pub = Path("frontend/public") / fname
+        out_dist = Path("frontend/dist") / fname
 
-    out_pub.parent.mkdir(parents=True, exist_ok=True)
-    with open(out_pub, "w", encoding="utf-8") as f:
-        json.dump(payload, f, separators=(",", ":"))
-    print(f"Saved {len(timeline)} keyframes to {out_pub}")
-
-    if out_dist.parent.exists():
-        with open(out_dist, "w", encoding="utf-8") as f:
+        out_pub.parent.mkdir(parents=True, exist_ok=True)
+        with open(out_pub, "w", encoding="utf-8") as f:
             json.dump(payload, f, separators=(",", ":"))
-        print(f"Synced to {out_dist}")
+        print(f"Saved {len(timeline)} keyframes to {out_pub}")
+
+        if out_dist.parent.exists():
+            with open(out_dist, "w", encoding="utf-8") as f:
+                json.dump(payload, f, separators=(",", ":"))
+            print(f"Synced to {out_dist}")
 
 def main():
-    weights_path = "ml/detection/weights/best.pt"
-    print(f"Using master YOLOv8s crowd model from {weights_path}...")
+    best_demo_weights = "ml/detection/weights/best_demo.pt"
+    if not os.path.exists(best_demo_weights):
+        best_demo_weights = "ml/detection/weights/best.pt"
 
-    # Process Concourse Crossing
+    # Process Camera 3: Main Terminal Gate (Dense Scramble)
     process_video(
-        video_path=Path("frontend/public/concourse_crossing.webm"),
-        out_filename="telemetry_concourse.json",
-        camera_id="cam-002",
-        weights_path=weights_path,
+        video_path=Path("frontend/public/12269404_2320_1080_30fps.mp4"),
+        out_filenames=["telemetry_terminal.json", "telemetry_cam001.json"],
+        camera_id="cam-003",
+        weights_path=best_demo_weights,
+        conf_threshold=0.12,
+        sample_interval=2,
     )
 
-    # Process Corridor Chokepoint
+    # Process Camera 4: Central Plaza Courtyard
     process_video(
-        video_path=Path("frontend/public/corridor_chokepoint.webm"),
-        out_filename="telemetry_corridor.json",
-        camera_id="cam-001",
-        weights_path=weights_path,
+        video_path=Path("frontend/public/5287069-sd_960_540_30fps.mp4"),
+        out_filenames=["telemetry_plaza.json", "telemetry_cam002.json"],
+        camera_id="cam-004",
+        weights_path=best_demo_weights,
+        conf_threshold=0.10,
+        sample_interval=2,
     )
 
     print("\n[SUCCESS] Presentation-ready high-density telemetry generated for all feeds!")

@@ -39,15 +39,35 @@ const CAMERAS = [
   },
 ];
 
-export const ANOMALY_TYPES: Array<{ type: string; severity: AlertSeverity }> = [
-  { type: 'Rapid Converging Flow Detected', severity: 'high' },
-  { type: 'Bottleneck Forming', severity: 'warning' },
-  { type: 'Sudden Dispersal Pattern', severity: 'warning' },
-  { type: 'Density Threshold Exceeded', severity: 'critical' },
-  { type: 'Abnormal Flow Direction Shift', severity: 'high' },
-  { type: 'Stationary Crowd Build-up', severity: 'warning' },
-  { type: 'Potential Stampede Risk', severity: 'critical' },
+export const CALIBRATED_TIME_WINDOWS: Record<string, { start: number; end: number; peak: number }> = {
+  'cam-001': { start: 3.8, end: 9.2, peak: 6.2 },
+  'cam-002': { start: 2.8, end: 8.2, peak: 5.4 },
+  'cam-003': { start: 2.2, end: 7.5, peak: 4.8 },
+  'cam-004': { start: 1.8, end: 6.2, peak: 3.8 },
+};
+
+export const ANOMALY_ROTATION = [
+  {
+    camera: 'cam-003',
+    type: 'Crowd Surge Detected',
+    severity: 'high' as AlertSeverity,
+    window: CALIBRATED_TIME_WINDOWS['cam-003'],
+  },
+  {
+    camera: 'cam-002',
+    type: 'Bottleneck Forming',
+    severity: 'warning' as AlertSeverity,
+    window: CALIBRATED_TIME_WINDOWS['cam-002'],
+  },
+  {
+    camera: 'cam-001',
+    type: 'Chokepoint Compression',
+    severity: 'high' as AlertSeverity,
+    window: CALIBRATED_TIME_WINDOWS['cam-001'],
+  },
 ];
+
+let scenarioIndex = 0;
 
 function clamp(n: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, n));
@@ -113,6 +133,7 @@ interface SimulatorState {
   activeAnomalyType: string | null;
   activeAnomalySeverity: AlertSeverity | null;
   activeAnomalyAlertFired: boolean;
+  activeAnomalyWindow: { start: number; end: number; peak: number } | null;
   listeners: Set<(event: CrowdEvent) => void>;
   alertListeners: Set<(alert: Alert) => void>;
   incidentListeners: Set<(incident: Incident) => void>;
@@ -122,12 +143,13 @@ interface SimulatorState {
 const state: SimulatorState = {
   headcounts: { 'cam-001': 22, 'cam-002': 68, 'cam-003': 185, 'cam-004': 20 },
   flows: { 'cam-001': 85, 'cam-002': 260, 'cam-003': 110, 'cam-004': 195 },
-  nextAnomalyAt: Date.now() + 20_000 + Math.random() * 20_000,
+  nextAnomalyAt: Date.now() + 25_000 + Math.random() * 15_000,
   activeAnomalyCamera: null,
   activeAnomalyEndsAt: 0,
   activeAnomalyType: null,
   activeAnomalySeverity: null,
   activeAnomalyAlertFired: false,
+  activeAnomalyWindow: null,
   listeners: new Set(),
   alertListeners: new Set(),
   incidentListeners: new Set(),
@@ -146,7 +168,7 @@ function tick() {
     const cid = cam.cameraId;
 
     let drift = (Math.random() - 0.5) * (cid === 'cam-003' ? 4 : 2);
-    if (isAnomalyActive && state.activeAnomalyType === 'Crowd Surge') {
+    if (isAnomalyActive && state.activeAnomalyType?.includes('Surge')) {
       drift += 6 * Math.sin(tickCount / 2) + 2;
     }
     const prev = state.headcounts[cid] ?? 20;
@@ -178,7 +200,7 @@ function tick() {
     let anomalyType: string | undefined;
     let severity: AlertSeverity | undefined;
 
-    // Strict rule compliance: Anomaly metrics must match ml/analytics/anomaly.py
+    // Strict rule compliance: Anomaly metrics match ml/analytics/anomaly.py
     let currentSpeed = cid === 'cam-003' ? 0.9 : cid === 'cam-001' ? 1.2 : 1.1;
     let currentVariance = 1.2;
     let currentTurbulence = 0.15;
@@ -187,13 +209,13 @@ function tick() {
       anomalyType = state.activeAnomalyType;
       severity = state.activeAnomalySeverity || 'high';
 
-      if (anomalyType === 'Crowd Surge') {
+      if (anomalyType.includes('Surge')) {
         currentVariance = 4.2; // >= 3.5 variance threshold
         currentTurbulence = 0.52; // >= 0.40 turbulence threshold
-      } else if (anomalyType === 'Bottleneck Forming') {
-        currentSpeed = 0.3; // <= 0.8 bottleneck speed max
+      } else if (anomalyType.includes('Bottleneck') || anomalyType.includes('Chokepoint')) {
+        currentSpeed = 0.3; // <= 0.8 bottleneck crawl threshold
         currentTurbulence = 0.55;
-      } else if (anomalyType === 'Sudden Dispersal Pattern') {
+      } else if (anomalyType.includes('Dispersal')) {
         currentSpeed = 16.5; // >= 15.0 px/window dispersal threshold
         currentVariance = 3.8;
       }
@@ -229,13 +251,16 @@ function tick() {
     };
     state.listeners.forEach((l) => l(event));
 
-    // Emit alert only once per unique anomaly episode, rather than repeating every tick
+    // Emit alert and incident once per unique anomaly episode
     if (event.anomaly && event.anomalyType && event.severity) {
       const shouldFireAlert = isAnomalyActive ? !state.activeAnomalyAlertFired : true;
       if (shouldFireAlert) {
         if (isAnomalyActive) {
           state.activeAnomalyAlertFired = true;
         }
+
+        const timeWindow = state.activeAnomalyWindow || CALIBRATED_TIME_WINDOWS[cam.cameraId] || { start: 2.5, end: 8.0, peak: 5.0 };
+
         const alert: Alert = {
           id: uid('alt_'),
           cameraId: cam.cameraId,
@@ -246,6 +271,7 @@ function tick() {
           acknowledged: false,
           snapshotFrame: Math.floor(Math.random() * 100),
           metrics: metricsData,
+          timeWindow,
         };
         state.alertListeners.forEach((l) => l(alert));
 
@@ -257,6 +283,8 @@ function tick() {
           alertType: event.anomalyType,
           severity: event.severity,
           status: 'open',
+          metrics_json: metricsData,
+          timeWindow,
         };
         state.incidentListeners.forEach((l) => l(incident));
       }
@@ -272,22 +300,26 @@ function tick() {
     }
   });
 
+  // Cycle anomaly scenarios cleanly across zones
   if (state.activeAnomalyCamera && now >= state.activeAnomalyEndsAt) {
     state.activeAnomalyCamera = null;
     state.activeAnomalyType = null;
     state.activeAnomalySeverity = null;
     state.activeAnomalyAlertFired = false;
+    state.activeAnomalyWindow = null;
   }
 
-  // Periodic anomaly triggers constrained to plausible zones:
-  // Surge only triggers on cam-003 (high density), bottleneck on cam-003 or cam-001
   if (!state.activeAnomalyCamera && now >= state.nextAnomalyAt) {
-    state.activeAnomalyCamera = 'cam-003';
-    state.activeAnomalyType = 'Crowd Surge';
-    state.activeAnomalySeverity = 'high';
+    const nextScenario = ANOMALY_ROTATION[scenarioIndex % ANOMALY_ROTATION.length];
+    scenarioIndex++;
+
+    state.activeAnomalyCamera = nextScenario.camera;
+    state.activeAnomalyType = nextScenario.type;
+    state.activeAnomalySeverity = nextScenario.severity;
+    state.activeAnomalyWindow = nextScenario.window;
     state.activeAnomalyAlertFired = false;
     state.activeAnomalyEndsAt = now + 12000;
-    state.nextAnomalyAt = now + 45_000 + Math.random() * 30_000;
+    state.nextAnomalyAt = now + 40_000 + Math.random() * 25_000;
   }
 }
 
@@ -325,27 +357,23 @@ export function onHeatmap(fn: (heatmap: CameraHeatmap) => void): () => void {
 }
 
 export function getInitialCameras(): CameraState[] {
-  const now = Date.now();
   return CAMERAS.map((cam) => ({
     cameraId: cam.cameraId,
     zoneName: cam.zoneName,
     description: cam.description,
     headcount: state.headcounts[cam.cameraId] ?? 20,
     density: densityFromCameraHeadcount(cam.cameraId, state.headcounts[cam.cameraId] ?? 20),
-    flowDirection: Math.round(state.flows[cam.cameraId] ?? 90),
-    lastUpdated: new Date(now).toISOString(),
+    flowDirection: state.flows[cam.cameraId] ?? 90,
+    lastUpdated: new Date().toISOString(),
     lastUpdatedAgo: 0,
     rtspUrl: cam.rtspUrl,
+    areaSqM: cam.areaSqM,
   }));
 }
 
 export function getInitialHeatmaps(): CameraHeatmap[] {
-  return CAMERAS.map((cam) => {
-    const divisor = cam.cameraId === 'cam-003' ? 220 : 35;
-    const base = clamp((state.headcounts[cam.cameraId] ?? 20) / divisor, 0, 1);
-    return {
-      cameraId: cam.cameraId,
-      grid: generateHeatmap(base),
-    };
-  });
+  return CAMERAS.map((cam) => ({
+    cameraId: cam.cameraId,
+    grid: generateHeatmap(clamp((state.headcounts[cam.cameraId] ?? 20) / 220, 0, 1)),
+  }));
 }

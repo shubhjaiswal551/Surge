@@ -155,7 +155,7 @@ if ret:
     cv2.imwrite("backend/snapshots/concourse_baseline.jpg", img_concourse_base)
     
     # Fused
-    res_dual = model(frame_concourse, conf=0.14, iou=0.45, imgsz=960, classes=[0, 1], verbose=False)[0]
+    res_dual = model(frame_concourse, conf=0.14, iou=0.45, imgsz=960, max_det=1500, classes=[0, 1], verbose=False)[0]
     fused_concourse = fuse_detections(
         res_dual.boxes.xyxy.cpu().numpy(),
         res_dual.boxes.conf.cpu().numpy(),
@@ -180,7 +180,7 @@ if ret_c:
     cv2.imwrite("backend/snapshots/corridor_baseline.jpg", img_corridor_base)
     
     # Fused
-    res_c_dual = model(frame_corridor, conf=0.16, iou=0.45, imgsz=960, classes=[0, 1], verbose=False)[0]
+    res_c_dual = model(frame_corridor, conf=0.16, iou=0.45, imgsz=960, max_det=1500, classes=[0, 1], verbose=False)[0]
     fused_corridor = fuse_detections(
         res_c_dual.boxes.xyxy.cpu().numpy(),
         res_c_dual.boxes.conf.cpu().numpy(),

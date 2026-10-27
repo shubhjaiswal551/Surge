@@ -21,10 +21,10 @@ from ultralytics import YOLO
 class SurgeTracker:
     def __init__(
         self,
-        weights_path: str = "backend/models/best.pt",
-        conf_threshold: float = 0.25,
-        iou_threshold: float = 0.5,
-        imgsz: int = 640,
+        weights_path: str = "ml/detection/weights/best.pt",
+        conf_threshold: float = 0.14,
+        iou_threshold: float = 0.45,
+        imgsz: int = 960,
         device: Optional[str] = None
     ):
         self.device = device or ("0" if torch.cuda.is_available() else "cpu")
@@ -49,13 +49,14 @@ class SurgeTracker:
         """
         h, w = frame.shape[:2]
 
-        # Run YOLO with built-in ByteTrack tracker
-        # tracker="bytetrack.yaml" is built-in with Ultralytics
+        # Run YOLO with built-in ByteTrack tracker and uncapped detections
         results = self.model.track(
             source=frame,
             conf=self.conf,
             iou=self.iou,
             imgsz=self.imgsz,
+            max_det=1500,
+            classes=[0, 1],
             persist=True,
             tracker="bytetrack.yaml",
             device=self.device,

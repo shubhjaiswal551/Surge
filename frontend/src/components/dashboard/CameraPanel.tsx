@@ -3,6 +3,7 @@ import { Volume2, Megaphone, CheckCircle2, X, RotateCcw, History, Grid3X3, Activ
 import type { DensityLevel } from '../../types/crowdEvent';
 import BroadcastAnnouncementModal from './BroadcastAnnouncementModal';
 import RubberSegment from '../ui/RubberSegment';
+import { API_BASE_URL } from '../../config/api';
 
 interface CameraPanelProps {
   cameraId: string;
@@ -20,6 +21,7 @@ interface CameraPanelProps {
   areaSqM?: number;
   isDark?: boolean;
   isMasterPlaying?: boolean;
+  forceShowBoxes?: boolean;
   liveBoxes?: Array<{
     id: number;
     x: number;
@@ -164,6 +166,7 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   areaSqM,
   isDark = false,
   isMasterPlaying,
+  forceShowBoxes,
   liveBoxes,
   onCalibrateZone,
   onInspectAnomaly,
@@ -227,8 +230,14 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
 
-  // Overlay layer toggles (off by default, only shown when deliberately toggled on)
+  // Overlay layer toggles (off by default)
   const [showBoxes, setShowBoxes] = useState(false);
+
+  useEffect(() => {
+    if (forceShowBoxes !== undefined) {
+      setShowBoxes(forceShowBoxes);
+    }
+  }, [forceShowBoxes]);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showVectors, setShowVectors] = useState(false);
   const [showZone, setShowZone] = useState(false);
@@ -293,29 +302,41 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
 
   useEffect(() => {
     let isMounted = true;
-    let telemetryUrl = '/telemetry_corridor.json';
-    if (effectiveVideoSrc.includes('corridor_chokepoint')) {
-      telemetryUrl = '/telemetry_corridor.json';
-    } else if (effectiveVideoSrc.includes('concourse_crossing')) {
-      telemetryUrl = '/telemetry_concourse.json';
-    } else if (effectiveVideoSrc.includes('12269404')) {
-      telemetryUrl = '/telemetry_cam001.json';
-    } else if (effectiveVideoSrc.includes('5287069')) {
-      telemetryUrl = '/telemetry_cam002.json';
-    } else if (isCam1) {
-      telemetryUrl = '/telemetry_corridor.json';
-    } else {
-      telemetryUrl = '/telemetry_concourse.json';
+    const candidates: string[] = [];
+
+    if (effectiveVideoSrc.includes('corridor_chokepoint') || cameraId === 'cam-001') {
+      candidates.push('/telemetry_corridor.json');
+    } else if (effectiveVideoSrc.includes('concourse_crossing') || cameraId === 'cam-002') {
+      candidates.push('/telemetry_concourse.json');
+    } else if (effectiveVideoSrc.includes('12269404') || cameraId === 'cam-003') {
+      candidates.push('/telemetry_terminal.json', '/telemetry_cam001.json');
+    } else if (effectiveVideoSrc.includes('5287069') || cameraId === 'cam-004') {
+      candidates.push('/telemetry_plaza.json', '/telemetry_cam002.json');
     }
 
-    fetch(`${telemetryUrl}?v=${Date.now()}`)
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (isMounted && data && data.timeline) {
-          setTelemetry(data);
+    // Direct endpoints and general fallbacks
+    candidates.push(`${API_BASE_URL}/cameras/${cameraId}/telemetry`);
+    candidates.push(`/telemetry_${cameraId.replace('-', '')}.json`);
+    candidates.push(isCam1 ? '/telemetry_corridor.json' : '/telemetry_concourse.json');
+
+    async function loadTelemetry() {
+      for (const url of candidates) {
+        try {
+          const res = await fetch(`${url}?v=${Date.now()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (isMounted && data && Array.isArray(data.timeline) && data.timeline.length > 0) {
+              setTelemetry(data);
+              return;
+            }
+          }
+        } catch {
+          // try next candidate
         }
-      })
-      .catch(() => {});
+      }
+    }
+    loadTelemetry();
+
     return () => {
       isMounted = false;
     };
@@ -331,6 +352,9 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
   // Hardware Canvas Overlay Render Loop (runs on requestAnimationFrame, 0% React re-render lag)
   useEffect(() => {
     let animId: number;
+    let lastVideoTime = -1;
+    let lastPerfTime = performance.now();
+    let lastPaused = true;
 
     const render = () => {
       const vid = videoRef.current;
@@ -355,7 +379,23 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
             ctx.scale(dpr, dpr);
             ctx.clearRect(0, 0, rect.width, rect.height);
 
-            const t = vid.currentTime || 0;
+            const isPaused = vid.paused || vid.ended || vid.seeking;
+            const currentVidTime = vid.currentTime || 0;
+
+            if (currentVidTime !== lastVideoTime || isPaused !== lastPaused) {
+              lastVideoTime = currentVidTime;
+              lastPerfTime = performance.now();
+              lastPaused = isPaused;
+            }
+
+            let t = currentVidTime;
+            if (!isPaused) {
+              const elapsed = (performance.now() - lastPerfTime) / 1000;
+              if (elapsed >= 0 && elapsed < 0.35) {
+                t = lastVideoTime + elapsed * (vid.playbackRate || 1);
+              }
+            }
+
             const dur = vid.duration || 11.5;
 
             // 1. Draw Thermal / Spatial Density Overlay (if enabled)
@@ -428,19 +468,10 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               h: number;
               label: string;
               isAnomaly?: boolean;
+              opacity?: number;
             }> = [];
 
-            const activeLiveBoxes = liveBoxesRef.current;
-            if (activeLiveBoxes && activeLiveBoxes.length > 0) {
-              currentBoxes = activeLiveBoxes.map((b) => ({
-                x: b.x,
-                y: b.y,
-                w: b.w,
-                h: b.h,
-                label: b.label || `#${b.id}`,
-                isAnomaly: !!b.isAnomaly,
-              }));
-            } else if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
+            if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
               const timeline = telemetry.timeline;
               const loopDuration = telemetry.duration || timeline[timeline.length - 1].time || 15.12;
               const effectiveTime = loopDuration > 0 ? (t % loopDuration) : t;
@@ -457,76 +488,98 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
               const matchedIds = new Set<number>();
 
               for (const b0 of kf0.boxes || []) {
+                if (!b0.w || !b0.h || b0.w <= 0 || b0.h <= 0 || b0.w > b0.h * 2.0) {
+                  continue;
+                }
                 matchedIds.add(b0.id);
-                const b1 = (kf1.boxes || []).find((b) => b.id === b0.id);
-                if (b1) {
-                  const dx = b1.x - b0.x;
-                  const dy = b1.y - b0.y;
-                  const displacement = Math.hypot(dx, dy);
 
-                  if (displacement <= 3.5) {
+                const b1 = (kf1.boxes || []).find((b) => b.id === b0.id);
+                const c0 = b0.conf ?? 50;
+                if (b1) {
+                  // Continuous 60fps tracking across keyframes
+                  const c1 = b1.conf ?? c0;
+                  interpolated.push({
+                    x: b0.x + (b1.x - b0.x) * factor,
+                    y: b0.y + (b1.y - b0.y) * factor,
+                    w: b0.w + (b1.w - b0.w) * factor,
+                    h: b0.h + (b1.h - b0.h) * factor,
+                    label: `${b0.label} · ${Math.round(c0 + (c1 - c0) * factor)}%`,
+                    isAnomaly: !!(b0.isAnomaly || b1.isAnomaly),
+                    opacity: 1.0,
+                  });
+                } else {
+                  // Graceful fade out when person leaves frame or is occluded
+                  if (factor < 0.5) {
                     interpolated.push({
-                      x: b0.x + dx * factor,
-                      y: b0.y + dy * factor,
-                      w: b0.w + (b1.w - b0.w) * factor,
-                      h: b0.h + (b1.h - b0.h) * factor,
-                      label: `${b0.label} · ${b0.conf}%`,
+                      x: b0.x,
+                      y: b0.y,
+                      w: b0.w,
+                      h: b0.h,
+                      label: `${b0.label} · ${c0}%`,
                       isAnomaly: !!b0.isAnomaly,
-                    });
-                  } else {
-                    const snapBox = factor < 0.5 ? b0 : b1;
-                    interpolated.push({
-                      x: snapBox.x,
-                      y: snapBox.y,
-                      w: snapBox.w,
-                      h: snapBox.h,
-                      label: `${snapBox.label} · ${snapBox.conf}%`,
-                      isAnomaly: !!snapBox.isAnomaly,
+                      opacity: 1.0 - (factor / 0.5),
                     });
                   }
-                } else {
-                  // Keep b0 persisting gracefully across the keyframe - zero 80ms disappearance flicker
-                  interpolated.push({
-                    x: b0.x,
-                    y: b0.y,
-                    w: b0.w,
-                    h: b0.h,
-                    label: `${b0.label} · ${b0.conf}%`,
-                    isAnomaly: !!b0.isAnomaly,
-                  });
                 }
               }
 
-              // Any newly appeared person in kf1: maintain smoothly
+              // Newly appeared person in kf1: graceful fade in
               for (const b1 of kf1.boxes || []) {
-                if (!matchedIds.has(b1.id)) {
+                if (matchedIds.has(b1.id)) continue;
+                if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) {
+                  continue;
+                }
+                const c1 = b1.conf ?? 50;
+                if (factor >= 0.5) {
                   interpolated.push({
                     x: b1.x,
                     y: b1.y,
                     w: b1.w,
                     h: b1.h,
-                    label: `${b1.label} · ${b1.conf}%`,
+                    label: `${b1.label} · ${c1}%`,
                     isAnomaly: !!b1.isAnomaly,
+                    opacity: (factor - 0.5) / 0.5,
                   });
                 }
               }
 
               currentBoxes = interpolated;
             } else {
-              const progress = Math.min(1, Math.max(0, (t % dur) / dur));
-              currentBoxes = baseTracks.map((trk) => ({
-                x: trk.startX + (trk.endX - trk.startX) * progress,
-                y: trk.startY + (trk.endY - trk.startY) * progress,
-                w: trk.w,
-                h: trk.h,
-                label: `${trk.id} · ${trk.conf}%`,
-                isAnomaly: anomaly,
-              }));
+              // Fallback only if telemetry timeline is unavailable
+              const activeLiveBoxes = liveBoxesRef.current;
+              if (activeLiveBoxes && activeLiveBoxes.length > 0) {
+                currentBoxes = activeLiveBoxes
+                  .filter((b) => !b.h || !b.w || b.w <= b.h * 2.0)
+                  .map((b) => ({
+                    x: b.x,
+                    y: b.y,
+                    w: b.w,
+                    h: b.h,
+                    label: b.label || `#${b.id}`,
+                    isAnomaly: !!b.isAnomaly,
+                    opacity: 1.0,
+                  }));
+              } else {
+                const progress = Math.min(1, Math.max(0, (t % dur) / dur));
+                currentBoxes = baseTracks.map((trk) => ({
+                  x: trk.startX + (trk.endX - trk.startX) * progress,
+                  y: trk.startY + (trk.endY - trk.startY) * progress,
+                  w: trk.w,
+                  h: trk.h,
+                  label: `${trk.id} · ${trk.conf}%`,
+                  isAnomaly: anomaly,
+                  opacity: 1.0,
+                }));
+              }
             }
 
             if (showBoxes) {
 
               for (const b of currentBoxes) {
+                const alpha = b.opacity !== undefined ? Math.max(0.05, Math.min(1.0, b.opacity)) : 1.0;
+                ctx.save();
+                ctx.globalAlpha = alpha;
+
                 const bx = (b.x / 100) * rect.width;
                 const by = (b.y / 100) * rect.height;
                 const bw = (b.w / 100) * rect.width;
@@ -594,6 +647,8 @@ const CameraPanel: React.FC<CameraPanelProps> = ({
                 ctx.fillStyle = boxAnomaly ? '#ffffff' : '#6ee7b7';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(b.label, bx + 9, badgeY + badgeH / 2);
+
+                ctx.restore();
               }
             }
 

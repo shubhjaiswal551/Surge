@@ -1,9 +1,16 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, FileText } from 'lucide-react';
+import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, FileText, Target, Users, Play, Pause, FastForward } from 'lucide-react';
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
 import { generateClientForensicDebrief } from '../../lib/forensicDebrief';
 import { useCrowdContext } from '../../context/CrowdContext';
+
+export const CALIBRATED_TIME_WINDOWS: Record<string, { start: number; end: number; peak: number }> = {
+  'cam-001': { start: 3.8, end: 9.2, peak: 6.2 },
+  'cam-002': { start: 2.8, end: 8.2, peak: 5.4 },
+  'cam-003': { start: 2.2, end: 7.5, peak: 4.8 },
+  'cam-004': { start: 1.8, end: 6.2, peak: 3.8 },
+};
 
 interface SnapshotModalProps {
   alert: Alert | null;
@@ -29,6 +36,9 @@ interface BoundingBoxesLayerProps {
   duration: number;
   showBoundingBoxes: boolean;
   overlayOpacity: number;
+  epicenter: { x: number; y: number; code: string; confidence: number; clusterSize: number };
+  filterAnomalyOnly: boolean;
+  alertType: string;
 }
 
 const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
@@ -40,11 +50,14 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
   duration,
   showBoundingBoxes,
   overlayOpacity,
+  epicenter,
+  filterAnomalyOnly,
+  alertType,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sizeRef = useRef<{ w: number; h: number; dpr: number }>({ w: 0, h: 0, dpr: 1 });
 
-  // 1. Maintain canvas dimensions strictly via ResizeObserver (Zero DOM reflows inside render loop!)
+  // 1. Maintain canvas dimensions strictly via ResizeObserver (Zero DOM reflows inside render loop)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -87,14 +100,41 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
     let lastPerfTime = performance.now();
     let lastPaused = true;
 
+    // Helper: Determine if a person's coordinate is inside the danger/risk zone
+    const isTargetAtRisk = (bx: number, by: number, bw: number, bh: number, isAnomalyFlag?: boolean) => {
+      if (isAnomalyFlag) return true;
+      const cx = bx + bw / 2;
+      const cy = by + bh / 2;
+      const dx = cx - epicenter.x;
+      const dy = (cy - epicenter.y) * 1.15; // Camera tilt perspective scaling
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      return dist <= 25.5; // Within the active hazard/epicenter radius
+    };
+
+    // Helper: Dynamic tactical threat label
+    const getTacticalLabel = (idStr: string | number, confVal: number, isRisk: boolean) => {
+      if (!isRisk) {
+        return `Pedestrian #${idStr} · Normal`;
+      }
+      const lowType = (alertType || '').toLowerCase();
+      if (lowType.includes('bottleneck') || lowType.includes('choke') || lowType.includes('crush')) {
+        return `CRUSH RISK · #${idStr} (${confVal}%)`;
+      }
+      if (lowType.includes('dispersal') || lowType.includes('stampede') || lowType.includes('panic') || lowType.includes('counterflow')) {
+        return `ESCAPE VECTOR · #${idStr} (${confVal}%)`;
+      }
+      return `SURGE RISK · #${idStr} (${confVal}%)`;
+    };
+
     const primaryBox = {
       x: isCam1 ? 36 : 38,
       y: isCam1 ? 46 : 34,
       w: 22,
       h: isCam1 ? 20 : 16,
-      label: `ANOMALY CLUSTER: ~${clusterSize}P`,
+      label: `ANOMALY EPICENTER: ~${clusterSize}P`,
       isPrimary: true,
-      isAnomaly: false,
+      isAnomaly: true,
+      isAtRisk: true,
       opacity: 1.0,
     };
 
@@ -155,51 +195,74 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
               const c0 = b0.conf ?? 50;
               processedIds.add(b0.id);
               const b1 = kf1Boxes.find((b: any) => b.id === b0.id);
+              const c1 = b1 ? (b1.conf ?? c0) : c0;
+              const confInterpolated = Math.round(c0 + (c1 - c0) * factor);
+
+              const curX = b1 ? b0.x + (b1.x - b0.x) * factor : b0.x;
+              const curY = b1 ? b0.y + (b1.y - b0.y) * factor : b0.y;
+              const curW = b1 ? b0.w + (b1.w - b0.w) * factor : b0.w;
+              const curH = b1 ? b0.h + (b1.h - b0.h) * factor : b0.h;
+
+              const isRisk = isTargetAtRisk(curX, curY, curW, curH, b0.isAnomaly || b1?.isAnomaly);
+
+              // Fine-Tuned Filter: If operator selected "Anomaly Targets Only", calm bystanders are omitted!
+              if (filterAnomalyOnly && !isRisk) {
+                continue;
+              }
+
               if (b1) {
-                const c1 = b1.conf ?? c0;
                 aiBoxes.push({
-                  x: b0.x + (b1.x - b0.x) * factor,
-                  y: b0.y + (b1.y - b0.y) * factor,
-                  w: b0.w + (b1.w - b0.w) * factor,
-                  h: b0.h + (b1.h - b0.h) * factor,
-                  label: `${b0.label} · ${Math.round(c0 + (c1 - c0) * factor)}%`,
+                  x: curX,
+                  y: curY,
+                  w: curW,
+                  h: curH,
+                  label: getTacticalLabel(b0.id, confInterpolated, isRisk),
                   isPrimary: false,
-                  isAnomaly: true,
+                  isAnomaly: isRisk,
+                  isAtRisk: isRisk,
                   opacity: 1.0,
                 });
               } else {
                 // Smooth fade for tracks about to leave
                 if (factor < 0.5) {
                   aiBoxes.push({
-                    x: b0.x,
-                    y: b0.y,
-                    w: b0.w,
-                    h: b0.h,
-                    label: `${b0.label} · ${c0}%`,
+                    x: curX,
+                    y: curY,
+                    w: curW,
+                    h: curH,
+                    label: getTacticalLabel(b0.id, c0, isRisk),
                     isPrimary: false,
-                    isAnomaly: true,
+                    isAnomaly: isRisk,
+                    isAtRisk: isRisk,
                     opacity: 1.0 - (factor / 0.5),
                   });
                 }
               }
             }
 
-            // 2. Also include freshly entering tracks in kf1 so emerging crowd members are not dropped
+            // 2. Also include freshly entering tracks in kf1
             for (const b1 of kf1Boxes) {
               if (processedIds.has(b1.id)) continue;
               if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) {
                 continue;
               }
               const c1 = b1.conf ?? 50;
+              const isRisk = isTargetAtRisk(b1.x, b1.y, b1.w, b1.h, b1.isAnomaly);
+
+              if (filterAnomalyOnly && !isRisk) {
+                continue;
+              }
+
               if (factor >= 0.5) {
                 aiBoxes.push({
                   x: b1.x,
                   y: b1.y,
                   w: b1.w,
                   h: b1.h,
-                  label: `${b1.label} · ${c1}%`,
+                  label: getTacticalLabel(b1.id, c1, isRisk),
                   isPrimary: false,
-                  isAnomaly: true,
+                  isAnomaly: isRisk,
+                  isAtRisk: isRisk,
                   opacity: (factor - 0.5) / 0.5,
                 });
               }
@@ -207,18 +270,28 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
 
             currentBoxes = [primaryBox, ...aiBoxes];
           } else {
+            // Fallback calibrated base tracks
             const clipDuration = duration > 0 ? duration : 11.5;
             const progress = Math.min(1, Math.max(0, (t % clipDuration) / clipDuration));
-            const personBoxes = baseTracks.map((trk) => ({
-              x: trk.startX + (trk.endX - trk.startX) * progress,
-              y: trk.startY + (trk.endY - trk.startY) * progress,
-              w: trk.w,
-              h: trk.h,
-              label: `${trk.id} · ${trk.conf}%`,
-              isPrimary: false,
-              isAnomaly: true,
-              opacity: 1.0,
-            }));
+            const personBoxes = baseTracks
+              .map((trk) => {
+                const px = trk.startX + (trk.endX - trk.startX) * progress;
+                const py = trk.startY + (trk.endY - trk.startY) * progress;
+                const isRisk = isTargetAtRisk(px, py, trk.w, trk.h);
+                return {
+                  x: px,
+                  y: py,
+                  w: trk.w,
+                  h: trk.h,
+                  label: getTacticalLabel(trk.id, trk.conf, isRisk),
+                  isPrimary: false,
+                  isAnomaly: isRisk,
+                  isAtRisk: isRisk,
+                  opacity: 1.0,
+                };
+              })
+              .filter((b) => !filterAnomalyOnly || b.isAtRisk);
+
             currentBoxes = [primaryBox, ...personBoxes];
           }
 
@@ -236,24 +309,27 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             const isPrimary = b.isPrimary;
             const isAnomaly = b.isAnomaly;
 
+            // Fill
             ctx.fillStyle = isPrimary
-              ? 'rgba(244, 63, 94, 0.14)'
+              ? 'rgba(244, 63, 94, 0.16)'
               : isAnomaly
-              ? 'rgba(245, 158, 11, 0.12)'
-              : 'rgba(16, 185, 129, 0.10)';
+              ? 'rgba(244, 63, 94, 0.14)'
+              : 'rgba(16, 185, 129, 0.08)';
             ctx.fillRect(bx, by, bw, bh);
 
-            ctx.lineWidth = isPrimary ? 2 : 1.5;
+            // Bounding box border
+            ctx.lineWidth = isPrimary ? 2 : isAnomaly ? 1.8 : 1.2;
             ctx.strokeStyle = isPrimary
               ? 'rgba(251, 113, 133, 0.95)'
               : isAnomaly
-              ? 'rgba(251, 191, 36, 0.95)'
-              : 'rgba(52, 211, 153, 0.90)';
+              ? 'rgba(244, 63, 94, 0.95)'
+              : 'rgba(52, 211, 153, 0.70)';
             ctx.strokeRect(bx, by, bw, bh);
 
+            // High-precision corner brackets
             const cLen = Math.min(8, Math.min(bw, bh) * 0.25);
             ctx.lineWidth = 2.5;
-            ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#fde68a' : '#6ee7b7';
+            ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#f87171' : '#6ee7b7';
 
             ctx.beginPath();
             ctx.moveTo(bx, by + cLen);
@@ -279,13 +355,14 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             ctx.lineTo(bx + bw, by + bh - cLen);
             ctx.stroke();
 
+            // Label badge
             ctx.font = '600 10px monospace';
             const textMetrics = ctx.measureText(b.label);
             const badgeW = textMetrics.width + 16;
             const badgeH = 16;
             const badgeY = Math.max(0, by - badgeH - 3);
 
-            ctx.fillStyle = isPrimary ? '#e11d48' : '#030712';
+            ctx.fillStyle = isPrimary ? '#e11d48' : isAnomaly ? '#991b1b' : '#064e3b';
             ctx.beginPath();
             if (ctx.roundRect) {
               ctx.roundRect(bx, badgeY, badgeW, badgeH, 4);
@@ -298,16 +375,18 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             ctx.strokeStyle = isPrimary
               ? '#fda4af'
               : isAnomaly
-              ? 'rgba(245, 158, 11, 0.6)'
+              ? 'rgba(244, 63, 94, 0.6)'
               : 'rgba(16, 185, 129, 0.4)';
             ctx.stroke();
 
-            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fbbf24' : '#34d178';
+            // Status Indicator Dot
+            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#f87171' : '#34d178';
             ctx.beginPath();
             ctx.arc(bx + 6, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
             ctx.fill();
 
-            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fef08a' : '#6ee7b7';
+            // Label Text
+            ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fee2e2' : '#d1fae5';
             ctx.textBaseline = 'middle';
             ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
             ctx.restore();
@@ -317,7 +396,6 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
         }
       }
 
-      // Schedule next frame in sync with video
       if ('requestVideoFrameCallback' in vid) {
         callbackHandle = (vid as any).requestVideoFrameCallback(drawFrame);
       } else {
@@ -341,7 +419,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
         }
       }
     };
-  }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration, showBoundingBoxes, overlayOpacity]);
+  }, [videoRef, telemetry, isCam1, clusterSize, baseTracks, duration, showBoundingBoxes, overlayOpacity, epicenter, filterAnomalyOnly, alertType]);
 
   if (!showBoundingBoxes) return null;
 
@@ -353,20 +431,37 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
   );
 };
 
-const TimelineScrubber: React.FC<{
+interface TimelineScrubberProps {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   duration: number;
   alert: Alert;
   isPlaying: boolean;
   onTogglePlay: () => void;
-}> = ({ videoRef, duration, alert, isPlaying, onTogglePlay }) => {
+  timeWindow: { start: number; end: number; peak: number };
+  isConstrained: boolean;
+  onToggleConstrained: () => void;
+  onJumpToStart: () => void;
+  onJumpToPeak: () => void;
+}
+
+const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
+  videoRef,
+  duration,
+  alert,
+  isPlaying,
+  onTogglePlay,
+  timeWindow,
+  isConstrained,
+  onToggleConstrained,
+  onJumpToStart,
+  onJumpToPeak,
+}) => {
   const [time, setTime] = useState(0);
 
   useEffect(() => {
     const vid = videoRef.current;
     if (!vid) return;
 
-    // Use native timeupdate event (fires ~3-4 times a second, 0% CPU overhead)
     const handleTime = () => {
       setTime(vid.currentTime);
     };
@@ -382,55 +477,103 @@ const TimelineScrubber: React.FC<{
     }
   };
 
+  const safeDuration = duration > 0 ? duration : 10;
+  const startPercent = Math.min(100, Math.max(0, (timeWindow.start / safeDuration) * 100));
+  const endPercent = Math.min(100, Math.max(0, (timeWindow.end / safeDuration) * 100));
+  const peakPercent = Math.min(100, Math.max(0, (timeWindow.peak / safeDuration) * 100));
+  const windowWidthPercent = Math.max(0, endPercent - startPercent);
+
   return (
-    <div className="absolute bottom-3 left-3 right-3 bg-black/75 backdrop-blur-md border border-white/15 px-3 py-1.5 rounded-xl z-25 flex items-center gap-3 text-white text-xs">
-      <button
-        type="button"
-        onClick={onTogglePlay}
-        className="w-6 h-6 rounded-md bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
-        title={isPlaying ? 'Pause Video' : 'Play Video'}
-      >
-        {isPlaying ? (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-            <rect x="6" y="4" width="4" height="16" />
-            <rect x="14" y="4" width="4" height="16" />
-          </svg>
-        ) : (
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M8 5v14l11-7z" />
-          </svg>
-        )}
-      </button>
-
-      <span className="text-[10px] font-mono text-slate-300 tabular-nums shrink-0">
-        {formatTime(time)} / {formatTime(duration)}
-      </span>
-
-      <div className="relative flex-1 flex items-center h-4 group cursor-pointer">
-        <div
-          className="absolute top-0 bottom-0 w-0.5 bg-rose-500 z-10 pointer-events-none"
-          style={{ left: '60%' }}
+    <div className="absolute bottom-3 left-3 right-3 bg-black/85 backdrop-blur-xl border border-white/20 px-3.5 py-2 rounded-2xl z-25 flex flex-col gap-2 text-white text-xs shadow-2xl">
+      <div className="flex items-center gap-3">
+        {/* Play/Pause Button */}
+        <button
+          type="button"
+          onClick={onTogglePlay}
+          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
+          title={isPlaying ? 'Pause Video' : 'Play Video'}
         >
-          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-semibold px-1 rounded bg-rose-600 text-white whitespace-nowrap shadow-xs flex items-center gap-0.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-rose-200 animate-ping inline-block" />
-            TRIGGER
-          </span>
+          {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+        </button>
+
+        {/* Time Stamp */}
+        <span className="text-[11px] font-mono text-slate-300 tabular-nums shrink-0">
+          {formatTime(time)} / {formatTime(safeDuration)}
+        </span>
+
+        {/* Scrubber Range Bar with Highlighted Anomaly Bracket */}
+        <div className="relative flex-1 flex items-center h-5 group cursor-pointer">
+          {/* Shaded Anomaly Time Bracket Track */}
+          <div
+            className="absolute top-1 bottom-1 bg-rose-500/30 border-x-2 border-rose-400 rounded-sm pointer-events-none transition-all z-5"
+            style={{ left: `${startPercent}%`, width: `${windowWidthPercent}%` }}
+          >
+            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold text-rose-300 uppercase tracking-widest whitespace-nowrap bg-black/80 px-1 py-0.5 rounded border border-rose-500/40">
+              Anomaly Window
+            </span>
+          </div>
+
+          {/* Trigger Peak Pin */}
+          <div
+            className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 pointer-events-none shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+            style={{ left: `${peakPercent}%` }}
+          >
+            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold px-1 py-0.5 rounded bg-amber-500 text-slate-950 whitespace-nowrap shadow-sm flex items-center gap-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping inline-block" />
+              PEAK {timeWindow.peak.toFixed(1)}s
+            </span>
+          </div>
+
+          <input
+            type="range"
+            min={0}
+            max={safeDuration}
+            step={0.05}
+            value={time}
+            onChange={handleSeek}
+            className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500 relative z-10"
+          />
         </div>
 
-        <input
-          type="range"
-          min={0}
-          max={duration || 10}
-          step={0.1}
-          value={time}
-          onChange={handleSeek}
-          className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500"
-        />
-      </div>
+        {/* Quick Jump Buttons */}
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={onJumpToStart}
+            className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-mono font-medium text-slate-200 transition"
+            title={`Seek to Anomaly Start (${timeWindow.start.toFixed(1)}s)`}
+          >
+            Start
+          </button>
+          <button
+            type="button"
+            onClick={onJumpToPeak}
+            className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-medium transition"
+            title={`Seek to Anomaly Peak (${timeWindow.peak.toFixed(1)}s)`}
+          >
+            Peak
+          </button>
+        </div>
 
-      <span className="text-[10px] font-mono text-slate-400 shrink-0 hidden sm:inline">
-        {alert.cameraId.toUpperCase()} ({alert.zoneName})
-      </span>
+        {/* Constrained Loop Toggle Pill */}
+        <button
+          type="button"
+          onClick={onToggleConstrained}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-mono font-semibold transition shrink-0 border ${
+            isConstrained
+              ? 'bg-rose-600/90 text-white border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-pulse'
+              : 'bg-white/10 text-slate-300 border-white/20 hover:bg-white/15'
+          }`}
+          title={isConstrained ? 'Switch to Full Surveillance Feed' : 'Constrain strictly to Anomaly Window'}
+        >
+          <FastForward size={10} />
+          <span>{isConstrained ? `Looping Anomaly (${timeWindow.start}s - ${timeWindow.end}s)` : 'Full Feed'}</span>
+        </button>
+
+        <span className="text-[10px] font-mono text-slate-400 shrink-0 hidden md:inline">
+          {alert.cameraId.toUpperCase()} ({alert.zoneName})
+        </span>
+      </div>
     </div>
   );
 };
@@ -501,11 +644,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
         const data = await res.json();
         setAiDebrief(data);
       } else {
-        // Fall back gracefully to client forensic engine (e.g. on Vercel preview/static hosting)
         setAiDebrief(fallbackDebrief);
       }
     } catch {
-      // In standalone client deployment (e.g. Vercel), populate immediately from client engine
       setAiDebrief(fallbackDebrief);
     } finally {
       setIsDebriefLoading(false);
@@ -518,17 +659,59 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     }
   }, [alert?.id]);
 
-  // Video playback ref & state (no currentTime state at root to prevent video decoder starvation)
+  // Video playback ref & state
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(true);
   const [duration, setDuration] = useState(0);
 
-  // Interactive Layer Toggles (All overlays off by default, shown only when deliberately toggled on)
+  // Time Constraint Window (Auto-calculated from alert or calibrated per CCTV feed)
+  const timeWindow = useMemo(() => {
+    if (!alert) return { start: 2.0, end: 8.0, peak: 5.0 };
+    return (
+      alert.timeWindow ||
+      CALIBRATED_TIME_WINDOWS[alert.cameraId] || {
+        start: 2.5,
+        end: 8.0,
+        peak: 5.0,
+      }
+    );
+  }, [alert?.timeWindow, alert?.cameraId]);
+
+  // Constrain snapshot video strictly to anomaly window (enabled by default)
+  const [isConstrained, setIsConstrained] = useState(true);
+
+  // Filter Bounding Boxes: Only show people causing or at risk of anomaly (enabled by default)
+  const [filterAnomalyOnly, setFilterAnomalyOnly] = useState(true);
+
+  // Interactive Layer Toggles
   const [showReticle, setShowReticle] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showVectors, setShowVectors] = useState(false);
   const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
-  const [overlayOpacity, setOverlayOpacity] = useState(80);
+  const [overlayOpacity, setOverlayOpacity] = useState(85);
+
+  // Frame-accurate seamless looping within time constraint
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+
+    if (isConstrained && (vid.currentTime < timeWindow.start || vid.currentTime >= timeWindow.end)) {
+      vid.currentTime = timeWindow.start;
+    }
+
+    let rafId: number;
+    const loopCheck = () => {
+      if (vid && isConstrained && !vid.paused && !vid.seeking) {
+        if (vid.currentTime >= timeWindow.end || vid.currentTime < timeWindow.start - 0.2) {
+          vid.currentTime = timeWindow.start;
+        }
+      }
+      rafId = requestAnimationFrame(loopCheck);
+    };
+    rafId = requestAnimationFrame(loopCheck);
+
+    return () => cancelAnimationFrame(rafId);
+  }, [isConstrained, timeWindow]);
 
   if (!alert) return null;
 
@@ -543,6 +726,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       setDuration(videoRef.current.duration || 10);
+      if (isConstrained) {
+        videoRef.current.currentTime = timeWindow.start;
+      }
     }
   };
 
@@ -554,6 +740,18 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     } else {
       videoRef.current.play();
       setIsPlaying(true);
+    }
+  };
+
+  const handleJumpToStart = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = timeWindow.start;
+    }
+  };
+
+  const handleJumpToPeak = () => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = timeWindow.peak;
     }
   };
 
@@ -615,18 +813,17 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
         w: number;
         h: number;
         conf: number;
+        isAnomaly?: boolean;
       }>;
     }>;
   } | null>(null);
 
   useEffect(() => {
-    // 1. Direct inline telemetry if attached to alert
     if ((alert as any).telemetry?.timeline) {
       setTelemetry((alert as any).telemetry);
       return;
     }
 
-    // 2. Candidate endpoints for real CCTV or recorded evidence telemetry
     const candidateUrls = [
       (alert as any).telemetryUrl,
       `${API_BASE_URL}/incidents/${alert.id}/telemetry`,
@@ -653,7 +850,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
             }
           }
         } catch {
-          // fall through to next candidate
+          // fall through
         }
       }
     }
@@ -661,9 +858,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     return () => {
       isMounted = false;
     };
-  }, [alert, isCam1]);
+  }, [alert, isCam1, videoSrc]);
 
-  // Real Linear Pedestrian Trajectories calibrated tightly to actual subjects in the surveillance footage
+  // Real Linear Pedestrian Trajectories calibrated to surveillance subjects
   const baseTracks = useMemo(() => {
     if (isCam1) {
       return [
@@ -673,7 +870,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
         { id: 'Subject #04', startX: 46, startY: 64, endX: 50, endY: 67, w: 6.8, h: 21.0, conf: 89 },
       ];
     }
-    // Cam 2: Central Courtyard - tightly calibrated to 4 distinct moving individuals
     return [
       { id: 'Subject #01', startX: 17, startY: 38, endX: 30, endY: 41, w: 6.0, h: 18.0, conf: 88 },
       { id: 'Subject #02', startX: 46, startY: 45, endX: 56, endY: 49, w: 6.8, h: 21.0, conf: 92 },
@@ -795,7 +991,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 ref={videoRef}
                 src={videoSrc}
                 autoPlay
-                loop
+                loop={!isConstrained}
                 muted
                 playsInline
                 preload="auto"
@@ -805,18 +1001,49 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
             )}
 
             {/* Top Left: Sleek Frosted Glass Status Badge */}
-            <div className="absolute top-3 left-3 flex items-center gap-2 z-20">
+            <div className="absolute top-3 left-3 flex items-center gap-2 z-20 flex-wrap">
               <span className="text-[11px] font-mono font-medium text-white/95 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/20 backdrop-blur-xl shadow-lg ring-1 ring-inset ring-white/10 flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
                 <span>{alert.cameraId.toUpperCase()} · Live Evidence</span>
                 <span className="text-white/30">|</span>
                 <span className="text-slate-300">{new Date(alert.timestamp).toLocaleTimeString()}</span>
               </span>
+
+              {/* Anomaly Constraint Active Pill */}
+              {isConstrained && (
+                <span className="text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/80 px-2.5 py-1.5 rounded-xl border border-rose-500/40 backdrop-blur-xl shadow-lg flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                  <span>INCIDENT WINDOW: {timeWindow.start.toFixed(1)}s - {timeWindow.end.toFixed(1)}s</span>
+                </span>
+              )}
             </div>
 
-            {/* Top Right: Individual Floating Glass Cards for Each Option */}
+            {/* Top Right: Individual Floating Glass Cards for Overlays & Anomaly Target Filter */}
             <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20 flex-wrap justify-end">
-              {/* Separate Card 1: Reticle */}
+              {/* Target Anomaly Filter Button */}
+              {showBoundingBoxes && (
+                <button
+                  type="button"
+                  onClick={() => setFilterAnomalyOnly(!filterAnomalyOnly)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
+                    filterAnomalyOnly
+                      ? 'bg-rose-950/85 border-rose-500/60 text-white shadow-[0_4px_16px_rgba(244,63,94,0.35)] ring-1 ring-rose-500/50'
+                      : 'bg-slate-950/70 border-emerald-500/40 text-emerald-300 hover:text-white'
+                  }`}
+                  title="Toggle: Show only anomaly targets vs all tracked pedestrians"
+                >
+                  {filterAnomalyOnly ? (
+                    <Target size={12} className="text-rose-400 animate-pulse" />
+                  ) : (
+                    <Users size={12} className="text-emerald-400" />
+                  )}
+                  <span className="text-[11px] font-medium tracking-tight">
+                    {filterAnomalyOnly ? 'Anomaly Targets Only' : 'All Tracked Pedestrians'}
+                  </span>
+                </button>
+              )}
+
+              {/* Reticle */}
               <button
                 type="button"
                 onClick={() => setShowReticle(!showReticle)}
@@ -833,7 +1060,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 </div>
               </button>
 
-              {/* Separate Card 2: Heatmap */}
+              {/* Heatmap */}
               <button
                 type="button"
                 onClick={() => setShowHeatmap(!showHeatmap)}
@@ -850,7 +1077,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 </div>
               </button>
 
-              {/* Separate Card 3: Vectors */}
+              {/* Vectors */}
               <button
                 type="button"
                 onClick={() => setShowVectors(!showVectors)}
@@ -867,7 +1094,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 </div>
               </button>
 
-              {/* Separate Card 4: Boxes */}
+              {/* Boxes */}
               <button
                 type="button"
                 onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
@@ -884,7 +1111,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                 </div>
               </button>
 
-              {/* Separate Card 5: Opacity Slider */}
+              {/* Opacity Slider */}
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/50 backdrop-blur-xl border border-white/20 shadow-md text-white">
                 <span className="text-[10px] font-mono text-white/70 select-none">
                   {overlayOpacity}%
@@ -964,7 +1191,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </svg>
             )}
 
-            {/* AI Bounding Boxes Layer - Isolated sub-component without parent re-renders */}
+            {/* AI Bounding Boxes Layer - Fine-tuned for Anomaly Targets & Bystander Separation */}
             <BoundingBoxesLayer
               videoRef={videoRef}
               telemetry={telemetry}
@@ -974,6 +1201,9 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               duration={duration}
               showBoundingBoxes={showBoundingBoxes}
               overlayOpacity={overlayOpacity}
+              epicenter={epicenter}
+              filterAnomalyOnly={filterAnomalyOnly}
+              alertType={alert.type}
             />
 
             {/* Anomaly Epicenter Marker & Glassmorphic HUD Tag */}
@@ -997,7 +1227,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
 
                 {/* Floating Forensic HUD Tag - Glassmorphic Glass Card */}
                 <div className="absolute left-7 top-3 bg-slate-950/50 backdrop-blur-xl border border-white/25 rounded-2xl p-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/15 w-48 pointer-events-auto select-none transition-all">
-                  {/* Glossy Reflection Highlight */}
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/15 via-transparent to-transparent pointer-events-none" />
 
                   <div className="relative z-10">
@@ -1034,13 +1263,18 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </div>
             )}
 
-            {/* Video Playback Scrubber & Timeline Bar - Isolated native timeupdate sub-component */}
+            {/* Video Playback Scrubber & Timeline Bar with Anomaly Loop Constraint */}
             <TimelineScrubber
               videoRef={videoRef}
               duration={duration}
               alert={alert}
               isPlaying={isPlaying}
               onTogglePlay={togglePlay}
+              timeWindow={timeWindow}
+              isConstrained={isConstrained}
+              onToggleConstrained={() => setIsConstrained(!isConstrained)}
+              onJumpToStart={handleJumpToStart}
+              onJumpToPeak={handleJumpToPeak}
             />
           </div>
 
@@ -1137,13 +1371,11 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
 
             {aiDebrief && !isDebriefLoading && (
               <div className="space-y-2.5">
-                {/* Situation Summary */}
                 <div className="p-2.5 rounded-xl bg-white border border-indigo-100/90 leading-relaxed text-slate-700 text-xs shadow-sm">
                   <span className="font-semibold text-indigo-700">Operational Assessment: </span>
                   {aiDebrief.summary}
                 </div>
 
-                {/* Threat & Stampede Risk Metrics */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div className="p-2 rounded-xl bg-white border border-slate-200/80">
                     <div className="text-[9px] text-slate-400 font-mono uppercase">Threat Level</div>
@@ -1178,7 +1410,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                   </div>
                 </div>
 
-                {/* Recommended Actions Protocol */}
                 {aiDebrief.recommended_actions && aiDebrief.recommended_actions.length > 0 && (
                   <div className="space-y-1.5">
                     <div className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
@@ -1201,7 +1432,6 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                   </div>
                 )}
 
-                {/* Quick Action Footer */}
                 <div className="flex items-center justify-between pt-1 text-[10px] text-slate-500 border-t border-slate-200/70">
                   <span className="font-mono">Engine: {aiDebrief.source}</span>
                   {aiDebrief.operator_notes_draft && (

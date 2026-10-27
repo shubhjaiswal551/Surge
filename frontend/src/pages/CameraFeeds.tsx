@@ -8,7 +8,7 @@ import ZoneCalibrationModal from '../components/dashboard/ZoneCalibrationModal';
 import FlagIncidentModal from '../components/dashboard/FlagIncidentModal';
 import KeyboardShortcutsModal from '../components/dashboard/KeyboardShortcutsModal';
 import RubberSegment from '../components/ui/RubberSegment';
-import { SearchX, X, Pause, Play, Keyboard } from 'lucide-react';
+import { SearchX, X, Pause, Play, Keyboard, Scan } from 'lucide-react';
 import { useCrowdStream } from '../hooks/useCrowdStream';
 import { API_BASE_URL } from '../config/api';
 import { playChime, isSoundEnabled, setSoundEnabled } from '../lib/sound';
@@ -63,6 +63,7 @@ const CameraFeeds: React.FC = () => {
 
   // Synchronized Master Playback Control (P3)
   const [isMasterPlaying, setIsMasterPlaying] = useState<boolean>(true);
+  const [masterShowBoxes, setMasterShowBoxes] = useState<boolean>(false);
   const [showShortcutsModal, setShowShortcutsModal] = useState<boolean>(false);
 
   useEffect(() => {
@@ -76,7 +77,6 @@ const CameraFeeds: React.FC = () => {
 
   // Audio Alarm Dispatcher State
   const [soundActive, setSoundActive] = useState<boolean>(() => isSoundEnabled());
-  const [isAlarmSounding, setIsAlarmSounding] = useState<boolean>(false);
   const lastSoundTimeRef = useRef<number>(0);
 
   // Search, Filter and Sorting
@@ -185,6 +185,7 @@ const CameraFeeds: React.FC = () => {
               headcount: ev.headcount ?? c.headcount,
               density: ev.density ?? c.density,
               flowDirection: ev.flowDirection ?? c.flowDirection,
+              boxes: ev.boxes ?? c.boxes,
               lastUpdated: ev.timestamp || new Date().toISOString(),
               lastUpdatedAgo: 0,
             }
@@ -228,6 +229,16 @@ const CameraFeeds: React.FC = () => {
               : a,
           );
         }
+        const calibratedWindow =
+          (ev as any).timeWindow ||
+          (ev.cameraId === 'cam-001'
+            ? { start: 3.8, end: 9.2, peak: 6.2 }
+            : ev.cameraId === 'cam-002'
+            ? { start: 2.8, end: 8.2, peak: 5.4 }
+            : ev.cameraId === 'cam-004'
+            ? { start: 1.8, end: 6.2, peak: 3.8 }
+            : { start: 2.2, end: 7.5, peak: 4.8 });
+
         const newAlert: Alert = {
           id: `alt-${Date.now().toString(36)}`,
           cameraId: ev.cameraId,
@@ -236,6 +247,7 @@ const CameraFeeds: React.FC = () => {
           severity: ev.severity || 'high',
           timestamp: ev.timestamp || new Date().toISOString(),
           acknowledged: false,
+          timeWindow: calibratedWindow,
         };
         return [newAlert, ...prev].slice(0, 50);
       });
@@ -261,6 +273,7 @@ const CameraFeeds: React.FC = () => {
                 headcount: ev.headcount,
                 density: ev.density,
                 flowDirection: ev.flowDirection,
+                boxes: ev.boxes ?? c.boxes,
                 lastUpdated: ev.timestamp,
                 lastUpdatedAgo: 0,
               }
@@ -308,8 +321,6 @@ const CameraFeeds: React.FC = () => {
       if (now - lastSoundTimeRef.current >= 6500) {
         lastSoundTimeRef.current = now;
         playChime(hasCritical ? 'critical' : 'high');
-        setIsAlarmSounding(true);
-        setTimeout(() => setIsAlarmSounding(false), 2200);
       }
     }
   }, [cameras, alerts, soundActive]);
@@ -387,6 +398,12 @@ const CameraFeeds: React.FC = () => {
           const next = !prev;
           setSoundEnabled(next);
           showToast(next ? 'Surge audio alarms enabled' : 'Surge audio alarms muted');
+          return next;
+        });
+      } else if (e.key === 'b' || e.key === 'B') {
+        setMasterShowBoxes((prev) => {
+          const next = !prev;
+          showToast(next ? 'AI Bounding Boxes: ON (All Feeds)' : 'AI Bounding Boxes: OFF');
           return next;
         });
       } else if (e.key === 'f' || e.key === 'F') {
@@ -661,43 +678,27 @@ const CameraFeeds: React.FC = () => {
                   <span>Hotkeys</span>
                 </button>
 
-                {/* Audio Surge Alarm Dispatcher */}
+                {/* Master AI Bounding Boxes Toggle (Replaces Alarm ON button, off by default) */}
                 <button
                   type="button"
                   onClick={() => {
-                    const next = !soundActive;
-                    setSoundActive(next);
-                    setSoundEnabled(next);
-                    showToast(next ? 'Audible crowd alarms enabled' : 'Audible crowd alarms muted');
+                    const next = !masterShowBoxes;
+                    setMasterShowBoxes(next);
+                    showToast(next ? 'AI Bounding Boxes: Enabled (All Feeds)' : 'AI Bounding Boxes: Hidden');
                   }}
-                  title={soundActive ? 'Audible crowd surge alarms active (Click to mute)' : 'Audible crowd surge alarms muted (Click to enable)'}
+                  title={masterShowBoxes ? 'AI Object Detection Bounding Boxes active (Click to hide / B)' : 'AI Object Detection Bounding Boxes hidden (Click to show / B)'}
                   className={`inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-medium border shadow-xs transition-all ${
-                    isAlarmSounding
-                      ? 'bg-rose-600 text-white border-rose-600 animate-pulse ring-2 ring-rose-500/50'
-                      : soundActive
-                        ? isSocDark
-                          ? 'bg-slate-800 text-emerald-400 border-slate-700 hover:bg-slate-750'
-                          : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70'
-                        : isSocDark
-                          ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-750'
-                          : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                    masterShowBoxes
+                      ? isSocDark
+                        ? 'bg-slate-800 text-emerald-400 border-slate-700 hover:bg-slate-750'
+                        : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70'
+                      : isSocDark
+                        ? 'bg-slate-800 text-slate-400 border-slate-700 hover:bg-slate-750'
+                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
                   }`}
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    {soundActive ? (
-                      <>
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07" />
-                      </>
-                    ) : (
-                      <>
-                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                        <line x1="23" y1="9" x2="17" y2="15" />
-                        <line x1="17" y1="9" x2="23" y2="15" />
-                      </>
-                    )}
-                  </svg>
-                  <span>{soundActive ? (isAlarmSounding ? 'SURGE' : 'Alarm ON') : 'Muted'}</span>
+                  <Scan size={13} className="shrink-0" />
+                  <span>{masterShowBoxes ? 'Boxes ON' : 'Boxes OFF'}</span>
                 </button>
 
                 {/* Dark Room Mode Toggle */}
@@ -953,6 +954,7 @@ const CameraFeeds: React.FC = () => {
                         areaSqM={getCameraArea(heroCam.cameraId)}
                         isDark={isSocDark}
                         isMasterPlaying={isMasterPlaying}
+                        forceShowBoxes={masterShowBoxes}
                         liveBoxes={heroCam.boxes}
                         anomaly={!!alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)}
                         anomalyType={alerts.find((a) => !a.acknowledged && a.cameraId === heroCam.cameraId)?.type}
@@ -1001,6 +1003,7 @@ const CameraFeeds: React.FC = () => {
                             areaSqM={getCameraArea(auxCam.cameraId)}
                             isDark={isSocDark}
                             isMasterPlaying={isMasterPlaying}
+                        forceShowBoxes={masterShowBoxes}
                             liveBoxes={auxCam.boxes}
                             anomaly={!!hasActiveAnomaly}
                             anomalyType={hasActiveAnomaly?.type}
@@ -1102,6 +1105,7 @@ const CameraFeeds: React.FC = () => {
                       areaSqM={getCameraArea(focusedCam.cameraId)}
                       isDark={isSocDark}
                       isMasterPlaying={isMasterPlaying}
+                        forceShowBoxes={masterShowBoxes}
                       liveBoxes={focusedCam.boxes}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
@@ -1143,6 +1147,7 @@ const CameraFeeds: React.FC = () => {
                       areaSqM={getCameraArea(cam.cameraId)}
                       isDark={isSocDark}
                       isMasterPlaying={isMasterPlaying}
+                        forceShowBoxes={masterShowBoxes}
                       liveBoxes={cam.boxes}
                       anomaly={!!hasActiveAnomaly}
                       anomalyType={hasActiveAnomaly?.type}
