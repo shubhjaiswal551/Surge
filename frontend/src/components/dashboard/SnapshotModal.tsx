@@ -1,5 +1,21 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, FileText, Target, Users, Play, Pause, FastForward } from 'lucide-react';
+import {
+  CheckCircle2,
+  Cpu,
+  Sparkles,
+  AlertTriangle,
+  ShieldAlert,
+  RotateCw,
+  FileText,
+  Target,
+  Play,
+  Pause,
+  FastForward,
+  Crosshair,
+  Flame,
+  Activity,
+  Layers,
+} from 'lucide-react';
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
 import { generateClientForensicDebrief } from '../../lib/forensicDebrief';
@@ -86,7 +102,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
     };
   }, []);
 
-  // 2. High-performance rendering in lockstep with video playback
+  // 2. High-performance decluttered rendering in lockstep with video playback
   useEffect(() => {
     if (!showBoundingBoxes) return;
 
@@ -100,32 +116,16 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
     let lastPerfTime = performance.now();
     let lastPaused = true;
 
-    // Helper: Determine if a person's coordinate is inside the danger/risk zone
-    const isTargetAtRisk = (bx: number, by: number, bw: number, bh: number, isAnomalyFlag?: boolean) => {
-      if (isAnomalyFlag) return true;
+    // Helper: Distance to anomaly epicenter (compensates for surveillance tilt angle)
+    const calcDistToEpicenter = (bx: number, by: number, bw: number, bh: number) => {
       const cx = bx + bw / 2;
       const cy = by + bh / 2;
       const dx = cx - epicenter.x;
-      const dy = (cy - epicenter.y) * 1.15; // Camera tilt perspective scaling
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      return dist <= 25.5; // Within the active hazard/epicenter radius
+      const dy = (cy - epicenter.y) * 1.15;
+      return Math.sqrt(dx * dx + dy * dy);
     };
 
-    // Helper: Dynamic tactical threat label
-    const getTacticalLabel = (idStr: string | number, confVal: number, isRisk: boolean) => {
-      if (!isRisk) {
-        return `Pedestrian #${idStr} · Normal`;
-      }
-      const lowType = (alertType || '').toLowerCase();
-      if (lowType.includes('bottleneck') || lowType.includes('choke') || lowType.includes('crush')) {
-        return `CRUSH RISK · #${idStr} (${confVal}%)`;
-      }
-      if (lowType.includes('dispersal') || lowType.includes('stampede') || lowType.includes('panic') || lowType.includes('counterflow')) {
-        return `ESCAPE VECTOR · #${idStr} (${confVal}%)`;
-      }
-      return `SURGE RISK · #${idStr} (${confVal}%)`;
-    };
-
+    // Primary cluster bounding envelope
     const primaryBox = {
       x: isCam1 ? 36 : 38,
       y: isCam1 ? 46 : 34,
@@ -182,12 +182,25 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             const dt = kf1.time - kf0.time;
             const factor = dt > 0 ? Math.min(1, Math.max(0, (effectiveTime - kf0.time) / dt)) : 0;
 
-            const aiBoxes: any[] = [];
             const kf0Boxes = kf0.boxes || [];
             const kf1Boxes = kf1.boxes || [];
             const processedIds = new Set<number>();
 
-            // 1. Interpolate continuous tracks visible in both keyframes
+            interface CandidateBox {
+              id: number | string;
+              x: number;
+              y: number;
+              w: number;
+              h: number;
+              conf: number;
+              dist: number;
+              isRisk: boolean;
+              opacity: number;
+            }
+
+            const candidateBoxes: CandidateBox[] = [];
+
+            // 1. Interpolate continuous tracks
             for (const b0 of kf0Boxes) {
               if (!b0.w || !b0.h || b0.w <= 0 || b0.h <= 0 || b0.w > b0.h * 2.0) {
                 continue;
@@ -198,77 +211,112 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
               const c1 = b1 ? (b1.conf ?? c0) : c0;
               const confInterpolated = Math.round(c0 + (c1 - c0) * factor);
 
+              // Discard low-confidence detector noise (< 38%)
+              if (confInterpolated < 38) continue;
+
               const curX = b1 ? b0.x + (b1.x - b0.x) * factor : b0.x;
               const curY = b1 ? b0.y + (b1.y - b0.y) * factor : b0.y;
               const curW = b1 ? b0.w + (b1.w - b0.w) * factor : b0.w;
               const curH = b1 ? b0.h + (b1.h - b0.h) * factor : b0.h;
 
-              const isRisk = isTargetAtRisk(curX, curY, curW, curH, b0.isAnomaly || b1?.isAnomaly);
+              const dist = calcDistToEpicenter(curX, curY, curW, curH);
+              const isRisk = dist <= 24.0 || b0.isAnomaly || b1?.isAnomaly;
+              const opacity = b1 ? 1.0 : (factor < 0.5 ? 1.0 - (factor / 0.5) : 0);
 
-              // Fine-Tuned Filter: If operator selected "Anomaly Targets Only", calm bystanders are omitted!
-              if (filterAnomalyOnly && !isRisk) {
-                continue;
-              }
-
-              if (b1) {
-                aiBoxes.push({
+              if (opacity > 0) {
+                candidateBoxes.push({
+                  id: b0.id,
                   x: curX,
                   y: curY,
                   w: curW,
                   h: curH,
-                  label: getTacticalLabel(b0.id, confInterpolated, isRisk),
-                  isPrimary: false,
-                  isAnomaly: isRisk,
-                  isAtRisk: isRisk,
-                  opacity: 1.0,
+                  conf: confInterpolated,
+                  dist,
+                  isRisk,
+                  opacity,
                 });
-              } else {
-                // Smooth fade for tracks about to leave
-                if (factor < 0.5) {
-                  aiBoxes.push({
-                    x: curX,
-                    y: curY,
-                    w: curW,
-                    h: curH,
-                    label: getTacticalLabel(b0.id, c0, isRisk),
-                    isPrimary: false,
-                    isAnomaly: isRisk,
-                    isAtRisk: isRisk,
-                    opacity: 1.0 - (factor / 0.5),
-                  });
-                }
               }
             }
 
-            // 2. Also include freshly entering tracks in kf1
+            // 2. Freshly entering tracks in kf1
             for (const b1 of kf1Boxes) {
               if (processedIds.has(b1.id)) continue;
-              if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) {
-                continue;
-              }
+              if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) continue;
               const c1 = b1.conf ?? 50;
-              const isRisk = isTargetAtRisk(b1.x, b1.y, b1.w, b1.h, b1.isAnomaly);
-
-              if (filterAnomalyOnly && !isRisk) {
-                continue;
-              }
+              if (c1 < 38) continue;
 
               if (factor >= 0.5) {
-                aiBoxes.push({
+                const dist = calcDistToEpicenter(b1.x, b1.y, b1.w, b1.h);
+                const isRisk = dist <= 24.0 || b1.isAnomaly;
+                candidateBoxes.push({
+                  id: b1.id,
                   x: b1.x,
                   y: b1.y,
                   w: b1.w,
                   h: b1.h,
-                  label: getTacticalLabel(b1.id, c1, isRisk),
-                  isPrimary: false,
-                  isAnomaly: isRisk,
-                  isAtRisk: isRisk,
+                  conf: c1,
+                  dist,
+                  isRisk,
                   opacity: (factor - 0.5) / 0.5,
                 });
               }
             }
 
-            currentBoxes = [primaryBox, ...aiBoxes];
+            let selectedBoxes: any[] = [];
+
+            if (filterAnomalyOnly) {
+              // Focal Risk Filter: Only keep people causing or trapped in the anomaly hazard zone
+              const riskOnly = candidateBoxes.filter((c) => c.isRisk);
+              // Sort by proximity to epicenter
+              riskOnly.sort((a, b) => a.dist - b.dist);
+
+              // Take top 6 core focal targets to prevent text crowding
+              const focalGroup = riskOnly.slice(0, 6);
+
+              selectedBoxes = focalGroup.map((c, idx) => {
+                const isPrimaryTarget = idx < 3; // Top 3 closest get full title badge
+                const lowType = (alertType || '').toLowerCase();
+                let label = `#${c.id}`;
+                if (isPrimaryTarget) {
+                  if (lowType.includes('bottleneck') || lowType.includes('choke') || lowType.includes('crush')) {
+                    label = `CRUSH RISK · #${c.id}`;
+                  } else if (lowType.includes('dispersal') || lowType.includes('stampede') || lowType.includes('panic')) {
+                    label = `ESCAPE · #${c.id}`;
+                  } else {
+                    label = `SURGE · #${c.id}`;
+                  }
+                }
+                return {
+                  x: c.x,
+                  y: c.y,
+                  w: c.w,
+                  h: c.h,
+                  label,
+                  isPrimary: false,
+                  isAnomaly: true,
+                  isPrimaryTarget,
+                  opacity: c.opacity,
+                };
+              });
+            } else {
+              // All Tracked Pedestrians Mode: Tactical for risk, calm emerald for bystanders
+              selectedBoxes = candidateBoxes.slice(0, 24).map((c) => {
+                const isRisk = c.isRisk;
+                return {
+                  x: c.x,
+                  y: c.y,
+                  w: c.w,
+                  h: c.h,
+                  label: isRisk ? `RISK · #${c.id}` : `#${c.id}`,
+                  isPrimary: false,
+                  isAnomaly: isRisk,
+                  isPrimaryTarget: isRisk,
+                  opacity: c.opacity,
+                };
+              });
+            }
+
+            currentBoxes = [primaryBox, ...selectedBoxes];
           } else {
             // Fallback calibrated base tracks
             const clipDuration = duration > 0 ? duration : 11.5;
@@ -277,25 +325,28 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
               .map((trk) => {
                 const px = trk.startX + (trk.endX - trk.startX) * progress;
                 const py = trk.startY + (trk.endY - trk.startY) * progress;
-                const isRisk = isTargetAtRisk(px, py, trk.w, trk.h);
+                const dist = calcDistToEpicenter(px, py, trk.w, trk.h);
+                const isRisk = dist <= 24.0;
                 return {
                   x: px,
                   y: py,
                   w: trk.w,
                   h: trk.h,
-                  label: getTacticalLabel(trk.id, trk.conf, isRisk),
+                  dist,
+                  label: isRisk ? `SURGE · ${trk.id}` : trk.id,
                   isPrimary: false,
                   isAnomaly: isRisk,
-                  isAtRisk: isRisk,
+                  isPrimaryTarget: isRisk,
                   opacity: 1.0,
                 };
               })
-              .filter((b) => !filterAnomalyOnly || b.isAtRisk);
+              .filter((b) => !filterAnomalyOnly || b.isAnomaly)
+              .slice(0, 6);
 
             currentBoxes = [primaryBox, ...personBoxes];
           }
 
-          // Render crisp hardware boxes
+          // Render sleek, unobtrusive hardware boxes
           for (const b of currentBoxes) {
             const alpha = b.opacity !== undefined ? Math.max(0.05, Math.min(1.0, b.opacity)) : 1.0;
             ctx.save();
@@ -309,26 +360,26 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             const isPrimary = b.isPrimary;
             const isAnomaly = b.isAnomaly;
 
-            // Fill
+            // Semi-translucent fill (subtle so video is clearly visible)
             ctx.fillStyle = isPrimary
-              ? 'rgba(244, 63, 94, 0.16)'
+              ? 'rgba(244, 63, 94, 0.12)'
               : isAnomaly
-              ? 'rgba(244, 63, 94, 0.14)'
-              : 'rgba(16, 185, 129, 0.08)';
+              ? 'rgba(244, 63, 94, 0.10)'
+              : 'rgba(16, 185, 129, 0.05)';
             ctx.fillRect(bx, by, bw, bh);
 
             // Bounding box border
-            ctx.lineWidth = isPrimary ? 2 : isAnomaly ? 1.8 : 1.2;
+            ctx.lineWidth = isPrimary ? 2 : isAnomaly ? 1.5 : 1.0;
             ctx.strokeStyle = isPrimary
               ? 'rgba(251, 113, 133, 0.95)'
               : isAnomaly
-              ? 'rgba(244, 63, 94, 0.95)'
-              : 'rgba(52, 211, 153, 0.70)';
+              ? 'rgba(244, 63, 94, 0.90)'
+              : 'rgba(52, 211, 153, 0.55)';
             ctx.strokeRect(bx, by, bw, bh);
 
-            // High-precision corner brackets
-            const cLen = Math.min(8, Math.min(bw, bh) * 0.25);
-            ctx.lineWidth = 2.5;
+            // Corner brackets
+            const cLen = Math.min(7, Math.min(bw, bh) * 0.25);
+            ctx.lineWidth = 2.0;
             ctx.strokeStyle = isPrimary ? '#fda4af' : isAnomaly ? '#f87171' : '#6ee7b7';
 
             ctx.beginPath();
@@ -355,40 +406,44 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             ctx.lineTo(bx + bw, by + bh - cLen);
             ctx.stroke();
 
-            // Label badge
-            ctx.font = '600 10px monospace';
+            // Label badge (compact and clamped)
+            ctx.font = isPrimary ? '600 10px monospace' : '600 9px monospace';
             const textMetrics = ctx.measureText(b.label);
-            const badgeW = textMetrics.width + 16;
-            const badgeH = 16;
-            const badgeY = Math.max(0, by - badgeH - 3);
+            const badgeW = textMetrics.width + 12;
+            const badgeH = isPrimary ? 16 : 14;
+            const badgeY = by >= badgeH + 4 ? by - badgeH - 2 : by + bh + 2;
 
-            ctx.fillStyle = isPrimary ? '#e11d48' : isAnomaly ? '#991b1b' : '#064e3b';
+            ctx.fillStyle = isPrimary
+              ? '#e11d48'
+              : isAnomaly
+              ? 'rgba(153, 27, 27, 0.95)'
+              : 'rgba(6, 78, 59, 0.85)';
             ctx.beginPath();
             if (ctx.roundRect) {
-              ctx.roundRect(bx, badgeY, badgeW, badgeH, 4);
+              ctx.roundRect(bx, badgeY, badgeW, badgeH, 3);
             } else {
               ctx.rect(bx, badgeY, badgeW, badgeH);
             }
             ctx.fill();
 
-            ctx.lineWidth = 1;
+            ctx.lineWidth = 0.8;
             ctx.strokeStyle = isPrimary
               ? '#fda4af'
               : isAnomaly
-              ? 'rgba(244, 63, 94, 0.6)'
-              : 'rgba(16, 185, 129, 0.4)';
+              ? 'rgba(244, 63, 94, 0.7)'
+              : 'rgba(52, 211, 153, 0.5)';
             ctx.stroke();
 
             // Status Indicator Dot
             ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#f87171' : '#34d178';
             ctx.beginPath();
-            ctx.arc(bx + 6, badgeY + badgeH / 2, 2.5, 0, Math.PI * 2);
+            ctx.arc(bx + 5, badgeY + badgeH / 2, 2, 0, Math.PI * 2);
             ctx.fill();
 
             // Label Text
             ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fee2e2' : '#d1fae5';
             ctx.textBaseline = 'middle';
-            ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
+            ctx.fillText(b.label, bx + 10, badgeY + badgeH / 2);
             ctx.restore();
           }
 
@@ -484,95 +539,100 @@ const TimelineScrubber: React.FC<TimelineScrubberProps> = ({
   const windowWidthPercent = Math.max(0, endPercent - startPercent);
 
   return (
-    <div className="absolute bottom-3 left-3 right-3 bg-black/85 backdrop-blur-xl border border-white/20 px-3.5 py-2 rounded-2xl z-25 flex flex-col gap-2 text-white text-xs shadow-2xl">
-      <div className="flex items-center gap-3">
-        {/* Play/Pause Button */}
-        <button
-          type="button"
-          onClick={onTogglePlay}
-          className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
-          title={isPlaying ? 'Pause Video' : 'Play Video'}
+    <div className="absolute bottom-3 left-3 right-3 bg-slate-950/85 backdrop-blur-2xl border border-white/15 px-4 py-2.5 rounded-2xl z-25 flex flex-col gap-2 text-white text-xs shadow-2xl">
+      {/* ROW 1: Dedicated Scrubber Bar with Anomaly Highlight & Peak Pin */}
+      <div className="relative flex items-center h-6 group cursor-pointer w-full">
+        {/* Shaded Anomaly Time Bracket Track */}
+        <div
+          className="absolute top-1 bottom-1 bg-rose-500/25 border-x border-rose-400/80 rounded-xs pointer-events-none transition-all z-5"
+          style={{ left: `${startPercent}%`, width: `${windowWidthPercent}%` }}
         >
-          {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
-        </button>
-
-        {/* Time Stamp */}
-        <span className="text-[11px] font-mono text-slate-300 tabular-nums shrink-0">
-          {formatTime(time)} / {formatTime(safeDuration)}
-        </span>
-
-        {/* Scrubber Range Bar with Highlighted Anomaly Bracket */}
-        <div className="relative flex-1 flex items-center h-5 group cursor-pointer">
-          {/* Shaded Anomaly Time Bracket Track */}
-          <div
-            className="absolute top-1 bottom-1 bg-rose-500/30 border-x-2 border-rose-400 rounded-sm pointer-events-none transition-all z-5"
-            style={{ left: `${startPercent}%`, width: `${windowWidthPercent}%` }}
-          >
-            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold text-rose-300 uppercase tracking-widest whitespace-nowrap bg-black/80 px-1 py-0.5 rounded border border-rose-500/40">
-              Anomaly Window
-            </span>
-          </div>
-
-          {/* Trigger Peak Pin */}
-          <div
-            className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 pointer-events-none shadow-[0_0_8px_rgba(251,191,36,0.9)]"
-            style={{ left: `${peakPercent}%` }}
-          >
-            <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold px-1 py-0.5 rounded bg-amber-500 text-slate-950 whitespace-nowrap shadow-sm flex items-center gap-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping inline-block" />
-              PEAK {timeWindow.peak.toFixed(1)}s
-            </span>
-          </div>
-
-          <input
-            type="range"
-            min={0}
-            max={safeDuration}
-            step={0.05}
-            value={time}
-            onChange={handleSeek}
-            className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500 relative z-10"
-          />
+          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold text-rose-300 uppercase tracking-widest whitespace-nowrap bg-black/80 px-1.5 py-0.2 rounded border border-rose-500/40">
+            Hazard Window
+          </span>
         </div>
 
-        {/* Quick Jump Buttons */}
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            type="button"
-            onClick={onJumpToStart}
-            className="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-mono font-medium text-slate-200 transition"
-            title={`Seek to Anomaly Start (${timeWindow.start.toFixed(1)}s)`}
-          >
-            Start
-          </button>
-          <button
-            type="button"
-            onClick={onJumpToPeak}
-            className="px-2 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-medium transition"
-            title={`Seek to Anomaly Peak (${timeWindow.peak.toFixed(1)}s)`}
-          >
-            Peak
-          </button>
+        {/* Trigger Peak Pin */}
+        <div
+          className="absolute top-0 bottom-0 w-0.5 bg-amber-400 z-10 pointer-events-none shadow-[0_0_8px_rgba(251,191,36,0.9)]"
+          style={{ left: `${peakPercent}%` }}
+        >
+          <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 text-[8px] font-mono font-bold px-1.5 py-0.2 rounded bg-amber-500 text-slate-950 whitespace-nowrap shadow-sm flex items-center gap-0.5">
+            <span className="w-1 h-1 rounded-full bg-slate-950 animate-ping inline-block" />
+            PEAK {timeWindow.peak.toFixed(1)}s
+          </span>
         </div>
 
-        {/* Constrained Loop Toggle Pill */}
-        <button
-          type="button"
-          onClick={onToggleConstrained}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-mono font-semibold transition shrink-0 border ${
-            isConstrained
-              ? 'bg-rose-600/90 text-white border-rose-400 shadow-[0_0_12px_rgba(244,63,94,0.4)] animate-pulse'
-              : 'bg-white/10 text-slate-300 border-white/20 hover:bg-white/15'
-          }`}
-          title={isConstrained ? 'Switch to Full Surveillance Feed' : 'Constrain strictly to Anomaly Window'}
-        >
-          <FastForward size={10} />
-          <span>{isConstrained ? `Looping Anomaly (${timeWindow.start}s - ${timeWindow.end}s)` : 'Full Feed'}</span>
-        </button>
+        <input
+          type="range"
+          min={0}
+          max={safeDuration}
+          step={0.05}
+          value={time}
+          onChange={handleSeek}
+          className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-rose-500 relative z-10"
+        />
+      </div>
 
-        <span className="text-[10px] font-mono text-slate-400 shrink-0 hidden md:inline">
-          {alert.cameraId.toUpperCase()} ({alert.zoneName})
-        </span>
+      {/* ROW 2: Playback Controls, Jumps, Looping Pill, and Metadata */}
+      <div className="flex items-center justify-between gap-3 pt-0.5 border-t border-white/10">
+        {/* Left side: Play/Pause, timecode, quick jumps */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={onTogglePlay}
+            className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors shrink-0"
+            title={isPlaying ? 'Pause' : 'Play'}
+          >
+            {isPlaying ? <Pause size={12} fill="currentColor" /> : <Play size={12} fill="currentColor" />}
+          </button>
+
+          <span className="text-[11px] font-mono text-slate-300 tabular-nums shrink-0">
+            {formatTime(time)} <span className="text-white/30">/</span> {formatTime(safeDuration)}
+          </span>
+
+          <div className="h-3 w-[1px] bg-white/15 mx-1" />
+
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onJumpToStart}
+              className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-[10px] font-mono font-medium text-slate-300 transition"
+              title={`Seek to Anomaly Start (${timeWindow.start.toFixed(1)}s)`}
+            >
+              Start ({timeWindow.start.toFixed(1)}s)
+            </button>
+            <button
+              type="button"
+              onClick={onJumpToPeak}
+              className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-mono font-medium transition"
+              title={`Seek to Anomaly Peak (${timeWindow.peak.toFixed(1)}s)`}
+            >
+              Peak ({timeWindow.peak.toFixed(1)}s)
+            </button>
+          </div>
+        </div>
+
+        {/* Right side: Constrained Loop Toggle & Zone label */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          <button
+            type="button"
+            onClick={onToggleConstrained}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[10px] font-mono font-semibold transition border ${
+              isConstrained
+                ? 'bg-rose-500/30 text-rose-200 border-rose-500/50 shadow-[0_0_12px_rgba(244,63,94,0.3)] animate-pulse'
+                : 'bg-white/10 text-slate-300 border-white/20 hover:bg-white/15'
+            }`}
+            title={isConstrained ? 'Switch to Full Surveillance Feed' : 'Constrain strictly to Anomaly Window'}
+          >
+            <FastForward size={11} />
+            <span>{isConstrained ? `Looping Anomaly (${timeWindow.start.toFixed(1)}s - ${timeWindow.end.toFixed(1)}s)` : 'Full Feed'}</span>
+          </button>
+
+          <span className="text-[10px] font-mono text-slate-400 hidden lg:inline">
+            {alert.cameraId.toUpperCase()} ({alert.zoneName})
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -664,7 +724,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   const [duration, setDuration] = useState(0);
 
-  // Time Constraint Window (Auto-calculated from alert or calibrated per CCTV feed)
+  // Time Constraint Window
   const timeWindow = useMemo(() => {
     if (!alert) return { start: 2.0, end: 8.0, peak: 5.0 };
     return (
@@ -1000,132 +1060,112 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               />
             )}
 
-            {/* Top Left: Sleek Frosted Glass Status Badge */}
-            <div className="absolute top-3 left-3 flex items-center gap-2 z-20 flex-wrap">
-              <span className="text-[11px] font-mono font-medium text-white/95 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-white/20 backdrop-blur-xl shadow-lg ring-1 ring-inset ring-white/10 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
-                <span>{alert.cameraId.toUpperCase()} · Live Evidence</span>
-                <span className="text-white/30">|</span>
-                <span className="text-slate-300">{new Date(alert.timestamp).toLocaleTimeString()}</span>
-              </span>
-
-              {/* Anomaly Constraint Active Pill */}
-              {isConstrained && (
-                <span className="text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/80 px-2.5 py-1.5 rounded-xl border border-rose-500/40 backdrop-blur-xl shadow-lg flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
-                  <span>INCIDENT WINDOW: {timeWindow.start.toFixed(1)}s - {timeWindow.end.toFixed(1)}s</span>
+            {/* Top Unified HUD Header: Left Status + Right Controls (Zero Overlap Guaranteed!) */}
+            <div className="absolute top-3 left-3 right-3 flex items-center justify-between z-20 pointer-events-none gap-2">
+              {/* Left: Camera & Live Evidence status */}
+              <div className="flex items-center gap-2 pointer-events-auto shrink-0">
+                <span className="text-[11px] font-mono font-medium text-white/95 bg-slate-950/70 px-3 py-1.5 rounded-xl border border-white/15 backdrop-blur-xl shadow-lg flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                  <span>{alert.cameraId.toUpperCase()}</span>
+                  <span className="text-white/30 hidden sm:inline">|</span>
+                  <span className="text-slate-300 hidden sm:inline">Live Evidence</span>
                 </span>
-              )}
-            </div>
 
-            {/* Top Right: Individual Floating Glass Cards for Overlays & Anomaly Target Filter */}
-            <div className="absolute top-3 right-3 flex items-center gap-1.5 z-20 flex-wrap justify-end">
-              {/* Target Anomaly Filter Button */}
-              {showBoundingBoxes && (
+                {isConstrained && (
+                  <span className="text-[10px] font-mono font-semibold text-rose-300 bg-rose-950/80 px-2.5 py-1.5 rounded-xl border border-rose-500/40 backdrop-blur-xl shadow-lg flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                    <span className="hidden sm:inline">WINDOW:</span> {timeWindow.start.toFixed(1)}s - {timeWindow.end.toFixed(1)}s
+                  </span>
+                )}
+              </div>
+
+              {/* Right: Sleek Grouped HUD Controls Toolbar */}
+              <div className="flex items-center gap-1.5 pointer-events-auto bg-slate-950/70 backdrop-blur-xl border border-white/15 p-1 rounded-2xl shadow-xl">
+                {/* Target Anomaly Filter Button */}
+                {showBoundingBoxes && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterAnomalyOnly(!filterAnomalyOnly)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
+                      filterAnomalyOnly
+                        ? 'bg-rose-500/30 text-rose-300 border border-rose-500/50 shadow-sm'
+                        : 'text-white/70 hover:text-white hover:bg-white/10'
+                    }`}
+                    title="Toggle: Filter Anomaly Targets Only vs All Tracked Pedestrians"
+                  >
+                    <Target size={12} className={filterAnomalyOnly ? 'text-rose-400 animate-pulse' : 'text-slate-400'} />
+                    <span>{filterAnomalyOnly ? 'Targets Only' : 'All Pedestrians'}</span>
+                  </button>
+                )}
+
+                <div className="w-[1px] h-4 bg-white/15 mx-0.5" />
+
+                {/* Reticle */}
                 <button
                   type="button"
-                  onClick={() => setFilterAnomalyOnly(!filterAnomalyOnly)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
-                    filterAnomalyOnly
-                      ? 'bg-rose-950/85 border-rose-500/60 text-white shadow-[0_4px_16px_rgba(244,63,94,0.35)] ring-1 ring-rose-500/50'
-                      : 'bg-slate-950/70 border-emerald-500/40 text-emerald-300 hover:text-white'
+                  onClick={() => setShowReticle(!showReticle)}
+                  className={`p-1.5 rounded-xl transition-all ${
+                    showReticle ? 'bg-rose-500 text-white shadow-sm' : 'text-white/60 hover:text-white hover:bg-white/10'
                   }`}
-                  title="Toggle: Show only anomaly targets vs all tracked pedestrians"
+                  title="Toggle Epicenter Reticle"
                 >
-                  {filterAnomalyOnly ? (
-                    <Target size={12} className="text-rose-400 animate-pulse" />
-                  ) : (
-                    <Users size={12} className="text-emerald-400" />
-                  )}
-                  <span className="text-[11px] font-medium tracking-tight">
-                    {filterAnomalyOnly ? 'Anomaly Targets Only' : 'All Tracked Pedestrians'}
-                  </span>
+                  <Crosshair size={13} />
                 </button>
-              )}
 
-              {/* Reticle */}
-              <button
-                type="button"
-                onClick={() => setShowReticle(!showReticle)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
-                  showReticle
-                    ? 'bg-slate-950/80 border-rose-500/50 text-white shadow-[0_4px_16px_rgba(244,63,94,0.25)] ring-1 ring-rose-500/30'
-                    : 'bg-slate-950/50 border-white/20 text-white/70 hover:text-white hover:bg-slate-950/70 hover:border-white/30'
-                }`}
-                title="Toggle Target Epicenter Reticle"
-              >
-                <span className="text-[11px] font-medium tracking-tight">Reticle</span>
-                <div className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border border-white/20 transition-colors duration-200 ease-in-out ${showReticle ? 'bg-rose-500' : 'bg-white/15'}`}>
-                  <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out my-auto mt-[1px] ${showReticle ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
+                {/* Heatmap */}
+                <button
+                  type="button"
+                  onClick={() => setShowHeatmap(!showHeatmap)}
+                  className={`p-1.5 rounded-xl transition-all ${
+                    showHeatmap ? 'bg-amber-500 text-white shadow-sm' : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Toggle Density Heatmap Layer"
+                >
+                  <Flame size={13} />
+                </button>
+
+                {/* Vectors */}
+                <button
+                  type="button"
+                  onClick={() => setShowVectors(!showVectors)}
+                  className={`p-1.5 rounded-xl transition-all ${
+                    showVectors ? 'bg-sky-500 text-white shadow-sm' : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Toggle Flow Trajectory Vectors"
+                >
+                  <Activity size={13} />
+                </button>
+
+                {/* Boxes */}
+                <button
+                  type="button"
+                  onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
+                  className={`p-1.5 rounded-xl transition-all ${
+                    showBoundingBoxes ? 'bg-emerald-500 text-white shadow-sm' : 'text-white/60 hover:text-white hover:bg-white/10'
+                  }`}
+                  title="Toggle AI Bounding Boxes"
+                >
+                  <Layers size={13} />
+                </button>
+
+                <div className="w-[1px] h-4 bg-white/15 mx-0.5" />
+
+                {/* Opacity Slider */}
+                <div className="flex items-center gap-1.5 px-2 text-white">
+                  <span className="text-[10px] font-mono text-white/60 select-none">
+                    {overlayOpacity}%
+                  </span>
+                  <input
+                    type="range"
+                    min={15}
+                    max={100}
+                    step={5}
+                    value={overlayOpacity}
+                    onChange={(e) => setOverlayOpacity(parseInt(e.target.value, 10))}
+                    className="w-12 sm:w-14 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-[#0071e3]"
+                    title="Adjust Overlay Intensity"
+                  />
                 </div>
-              </button>
-
-              {/* Heatmap */}
-              <button
-                type="button"
-                onClick={() => setShowHeatmap(!showHeatmap)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
-                  showHeatmap
-                    ? 'bg-slate-950/80 border-amber-500/50 text-white shadow-[0_4px_16px_rgba(245,158,11,0.25)] ring-1 ring-amber-500/30'
-                    : 'bg-slate-950/50 border-white/20 text-white/70 hover:text-white hover:bg-slate-950/70 hover:border-white/30'
-                }`}
-                title="Toggle Density Heatmap Layer"
-              >
-                <span className="text-[11px] font-medium tracking-tight">Heatmap</span>
-                <div className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border border-white/20 transition-colors duration-200 ease-in-out ${showHeatmap ? 'bg-amber-500' : 'bg-white/15'}`}>
-                  <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out my-auto mt-[1px] ${showHeatmap ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
-                </div>
-              </button>
-
-              {/* Vectors */}
-              <button
-                type="button"
-                onClick={() => setShowVectors(!showVectors)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
-                  showVectors
-                    ? 'bg-slate-950/80 border-sky-500/50 text-white shadow-[0_4px_16px_rgba(14,165,233,0.25)] ring-1 ring-sky-500/30'
-                    : 'bg-slate-950/50 border-white/20 text-white/70 hover:text-white hover:bg-slate-950/70 hover:border-white/30'
-                }`}
-                title="Toggle Flow Trajectory Vectors"
-              >
-                <span className="text-[11px] font-medium tracking-tight">Vectors</span>
-                <div className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border border-white/20 transition-colors duration-200 ease-in-out ${showVectors ? 'bg-sky-500' : 'bg-white/15'}`}>
-                  <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out my-auto mt-[1px] ${showVectors ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
-                </div>
-              </button>
-
-              {/* Boxes */}
-              <button
-                type="button"
-                onClick={() => setShowBoundingBoxes(!showBoundingBoxes)}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl backdrop-blur-xl border shadow-md transition-all select-none ${
-                  showBoundingBoxes
-                    ? 'bg-slate-950/80 border-emerald-500/50 text-white shadow-[0_4px_16px_rgba(16,185,129,0.25)] ring-1 ring-emerald-500/30'
-                    : 'bg-slate-950/50 border-white/20 text-white/70 hover:text-white hover:bg-slate-950/70 hover:border-white/30'
-                }`}
-                title="Toggle AI Object Detection Bounding Boxes"
-              >
-                <span className="text-[11px] font-medium tracking-tight">Boxes</span>
-                <div className={`relative inline-flex h-3.5 w-6 shrink-0 rounded-full border border-white/20 transition-colors duration-200 ease-in-out ${showBoundingBoxes ? 'bg-emerald-500' : 'bg-white/15'}`}>
-                  <span className={`inline-block h-2.5 w-2.5 transform rounded-full bg-white shadow-xs transition-transform duration-200 ease-in-out my-auto mt-[1px] ${showBoundingBoxes ? 'translate-x-2.5' : 'translate-x-0.5'}`} />
-                </div>
-              </button>
-
-              {/* Opacity Slider */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-950/50 backdrop-blur-xl border border-white/20 shadow-md text-white">
-                <span className="text-[10px] font-mono text-white/70 select-none">
-                  {overlayOpacity}%
-                </span>
-                <input
-                  type="range"
-                  min={15}
-                  max={100}
-                  step={5}
-                  value={overlayOpacity}
-                  onChange={(e) => setOverlayOpacity(parseInt(e.target.value, 10))}
-                  className="w-14 sm:w-16 h-1 bg-white/25 rounded-lg appearance-none cursor-pointer accent-[#0071e3] hover:accent-blue-400 transition-all"
-                  title="Adjust Overlay Intensity"
-                />
               </div>
             </div>
 
@@ -1191,7 +1231,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </svg>
             )}
 
-            {/* AI Bounding Boxes Layer - Fine-tuned for Anomaly Targets & Bystander Separation */}
+            {/* AI Bounding Boxes Layer - Fine-tuned, decluttered, high-precision */}
             <BoundingBoxesLayer
               videoRef={videoRef}
               telemetry={telemetry}
@@ -1225,7 +1265,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
                   <div className="absolute right-0 h-0.5 w-1.5 bg-rose-400" />
                 </div>
 
-                {/* Floating Forensic HUD Tag - Glassmorphic Glass Card */}
+                {/* Floating Forensic HUD Tag */}
                 <div className="absolute left-7 top-3 bg-slate-950/50 backdrop-blur-xl border border-white/25 rounded-2xl p-2.5 shadow-[0_12px_36px_rgba(0,0,0,0.45)] ring-1 ring-inset ring-white/15 w-48 pointer-events-auto select-none transition-all">
                   <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-white/15 via-transparent to-transparent pointer-events-none" />
 
@@ -1263,7 +1303,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
               </div>
             )}
 
-            {/* Video Playback Scrubber & Timeline Bar with Anomaly Loop Constraint */}
+            {/* Video Playback Scrubber & Timeline Bar with 2-Row Decluttered Layout */}
             <TimelineScrubber
               videoRef={videoRef}
               duration={duration}
