@@ -5,6 +5,7 @@ interface AlertCardProps {
   alert: Alert;
   onAcknowledge?: (id: string) => void;
   onViewSnapshot?: (id: string) => void;
+  onResolve?: (id: string) => void;
 }
 
 const severityConfig: Record<
@@ -51,6 +52,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
   alert,
   onAcknowledge,
   onViewSnapshot,
+  onResolve,
 }) => {
   const cfg = severityConfig[alert.severity];
 
@@ -88,7 +90,7 @@ const AlertCard: React.FC<AlertCardProps> = ({
             </span>
           </div>
 
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex items-center gap-2 pt-1 flex-wrap">
             <button
               type="button"
               onClick={() => onViewSnapshot?.(alert.id)}
@@ -123,6 +125,20 @@ const AlertCard: React.FC<AlertCardProps> = ({
                 </svg>
                 Acknowledged
               </span>
+            )}
+            {onResolve && (
+              <button
+                type="button"
+                onClick={() => onResolve(alert.id)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium
+                           bg-emerald-50 text-emerald-700 border border-emerald-200/90 hover:bg-emerald-100/80 shadow-2xs active:scale-95 transition-all"
+                title="Resolve and archive incident"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Resolve
+              </button>
             )}
           </div>
         </div>

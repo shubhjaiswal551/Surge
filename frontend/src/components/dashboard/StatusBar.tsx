@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { toggleSound, isSoundEnabled } from '../../lib/sound';
+import { toggleSound, isSoundEnabled, subscribeSoundChanges } from '../../lib/sound';
 
 import { useCrowdContext } from '../../context/CrowdContext';
 
@@ -17,13 +17,17 @@ const StatusBar: React.FC<StatusBarProps> = ({
   const [soundOn, setSoundOn] = useState(isSoundEnabled());
 
   useEffect(() => {
+    const unsub = subscribeSoundChanges((enabled) => setSoundOn(enabled));
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
     const id = window.setInterval(() => setNow(new Date()), 1000);
     return () => window.clearInterval(id);
   }, []);
 
   const handleToggleSound = () => {
-    const next = toggleSound();
-    setSoundOn(next);
+    toggleSound();
   };
 
   const effectiveAlertCount = typeof activeAlertCount === 'number' ? activeAlertCount : unacknowledgedAlertsCount;

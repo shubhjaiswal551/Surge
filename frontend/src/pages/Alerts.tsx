@@ -8,7 +8,12 @@ import MonitoredZoneStrip from '../components/dashboard/MonitoredZoneStrip';
 import TriageFilterBar, { type TriageStatusFilter, type TriageSortOrder } from '../components/dashboard/TriageFilterBar';
 import { useCrowdContext } from '../context/CrowdContext';
 import { playChime } from '../lib/sound';
-import { Volume2, CheckCircle2 } from 'lucide-react';
+import {
+  exportAlertsToCsv,
+  exportIncidentsToPdf,
+  exportToJson,
+} from '../lib/exportService';
+import { Volume2, CheckCircle2, FileDown, Printer, FileText, ShieldCheck } from 'lucide-react';
 
 const Alerts: React.FC = () => {
   const {
@@ -33,6 +38,7 @@ const Alerts: React.FC = () => {
   const [sortBy, setSortBy] = useState<TriageSortOrder>('newest');
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const toastTimeoutRef = useRef<number | null>(null);
 
   const showToast = (msg: string) => {
@@ -45,7 +51,7 @@ const Alerts: React.FC = () => {
 
   const handleTestAlarm = () => {
     playChime('critical');
-    showToast('Audible Alarm Test: Tactical chime sounded');
+    showToast('Audible Alarm Test: Tactical siren sounded');
   };
 
   const isFiltered = useMemo(() => {
@@ -113,6 +119,45 @@ const Alerts: React.FC = () => {
     return list;
   }, [alerts, selectedSeverity, selectedCameraId, selectedStatus, searchQuery, sortBy]);
 
+  const handleExportCsv = () => {
+    setShowExportMenu(false);
+    exportAlertsToCsv(filteredAlerts);
+    showToast('Exported active alerts queue to CSV.');
+  };
+
+  const handleExportPdf = () => {
+    setShowExportMenu(false);
+    // Convert alerts queue into incident format for the official report
+    const reportItems = filteredAlerts.map((a) => ({
+      id: a.id,
+      timestamp: a.timestamp,
+      cameraId: a.cameraId,
+      zoneName: a.zoneName,
+      alertType: a.type,
+      severity: a.severity,
+      status: a.acknowledged ? ('acknowledged' as const) : ('open' as const),
+      acknowledgedBy: a.acknowledgedBy,
+      notes: a.acknowledged ? 'Operator triaged in active feed.' : 'Awaiting operator review.',
+      metrics_json: a.metrics,
+    }));
+    exportIncidentsToPdf(reportItems, {
+      venueName: 'Surge Operations Command District',
+      operatorName: 'Control Room Lead',
+      filterDescription: `Live Triage Queue · Severity: ${selectedSeverity} · Filtered: ${filteredAlerts.length} items`,
+    });
+    showToast('Generating official PDF triage report...');
+  };
+
+  const handleExportJson = () => {
+    setShowExportMenu(false);
+    exportToJson(filteredAlerts, 'surge-alerts-queue', {
+      venueName: 'Surge Central Operations Command',
+      operatorName: 'Control Room Lead',
+      filterDescription: `Live Triage Queue (${filteredAlerts.length} alerts)`,
+    });
+    showToast('Exported telemetry queue to JSON.');
+  };
+
   const unacknowledged = unacknowledgedAlertsCount;
 
   return (
@@ -154,7 +199,61 @@ const Alerts: React.FC = () => {
               </div>
 
               {/* Triage action controls */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Export Dropdown Menu */}
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setShowExportMenu(!showExportMenu)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white text-slate-700 border border-slate-200 hover:bg-slate-50 active:scale-95 transition-all shadow-xs"
+                    title="Export current triage queue"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Export</span>
+                    <span className="text-[10px] text-slate-400">▾</span>
+                  </button>
+
+                  {showExportMenu && (
+                    <div className="absolute right-0 mt-1.5 w-56 rounded-2xl bg-white/95 backdrop-blur-xl border border-slate-200/90 shadow-floating z-50 p-1.5 space-y-1 animate-in fade-in zoom-in-95 duration-150">
+                      <button
+                        type="button"
+                        onClick={handleExportPdf}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-blue-50/70 hover:text-[#0071e3] transition-all flex items-center gap-2.5 group"
+                      >
+                        <Printer className="w-4 h-4 text-slate-400 group-hover:text-[#0071e3]" />
+                        <div>
+                          <div className="font-semibold">Official PDF Report</div>
+                          <div className="text-[10px] text-slate-400">Print-ready ISO incident briefing</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleExportCsv}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-slate-100/70 transition-all flex items-center gap-2.5 group"
+                      >
+                        <FileText className="w-4 h-4 text-slate-400 group-hover:text-emerald-600" />
+                        <div>
+                          <div className="font-semibold">Export CSV Queue</div>
+                          <div className="text-[10px] text-slate-400">Live active alert metrics</div>
+                        </div>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleExportJson}
+                        className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-slate-800 hover:bg-slate-100/70 transition-all flex items-center gap-2.5 group"
+                      >
+                        <ShieldCheck className="w-4 h-4 text-slate-400 group-hover:text-amber-600" />
+                        <div>
+                          <div className="font-semibold">Export JSON SitRep</div>
+                          <div className="text-[10px] text-slate-400">Raw telemetry objects</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
+
                 {/* Tactical Alarm Audio Test Button */}
                 <button
                   type="button"

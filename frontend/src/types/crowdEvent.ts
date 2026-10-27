@@ -95,6 +95,8 @@ export type Incident = {
   resolvedAt?: string;
   notes?: string;
   isFalsePositive?: boolean;
+  metrics_json?: any;
+  metrics?: MetricsData;
 };
 
 export type UserProfile = {

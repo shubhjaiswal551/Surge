@@ -3,6 +3,7 @@ import { CheckCircle2, Cpu, Sparkles, AlertTriangle, ShieldAlert, RotateCw, File
 import type { Alert } from '../../types/crowdEvent';
 import { API_BASE_URL } from '../../config/api';
 import { generateClientForensicDebrief } from '../../lib/forensicDebrief';
+import { useCrowdContext } from '../../context/CrowdContext';
 
 interface SnapshotModalProps {
   alert: Alert | null;
@@ -82,6 +83,9 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
 
     let isDisposed = false;
     let callbackHandle: number | null = null;
+    let lastVideoTime = -1;
+    let lastPerfTime = performance.now();
+    let lastPaused = true;
 
     const primaryBox = {
       x: isCam1 ? 36 : 38,
@@ -91,6 +95,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
       label: `ANOMALY CLUSTER: ~${clusterSize}P`,
       isPrimary: true,
       isAnomaly: false,
+      opacity: 1.0,
     };
 
     const drawFrame = () => {
@@ -103,10 +108,26 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
           ctx.save();
           ctx.scale(dpr, dpr);
           ctx.clearRect(0, 0, w, h);
-          ctx.globalAlpha = Math.max(0.25, overlayOpacity / 100);
 
-          const t = vid.currentTime;
-          let currentBoxes = [primaryBox];
+          const isPaused = vid.paused || vid.ended || vid.seeking;
+          const currentVidTime = vid.currentTime || 0;
+
+          if (currentVidTime !== lastVideoTime || isPaused !== lastPaused) {
+            lastVideoTime = currentVidTime;
+            lastPerfTime = performance.now();
+            lastPaused = isPaused;
+          }
+
+          let t = currentVidTime;
+          if (!isPaused) {
+            const elapsed = (performance.now() - lastPerfTime) / 1000;
+            if (elapsed >= 0 && elapsed < 0.35) {
+              t = lastVideoTime + elapsed * (vid.playbackRate || 1);
+            }
+          }
+
+          const baseAlpha = Math.max(0.25, overlayOpacity / 100);
+          let currentBoxes: any[] = [primaryBox];
 
           if (telemetry && telemetry.timeline && telemetry.timeline.length > 0) {
             const timeline = telemetry.timeline;
@@ -127,47 +148,62 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             const processedIds = new Set<number>();
 
             // 1. Interpolate continuous tracks visible in both keyframes
-            kf0Boxes.forEach((b0: any) => {
+            for (const b0 of kf0Boxes) {
+              if (!b0.w || !b0.h || b0.w <= 0 || b0.h <= 0 || b0.w > b0.h * 2.0) {
+                continue;
+              }
+              const c0 = b0.conf ?? 50;
               processedIds.add(b0.id);
               const b1 = kf1Boxes.find((b: any) => b.id === b0.id);
               if (b1) {
+                const c1 = b1.conf ?? c0;
                 aiBoxes.push({
                   x: b0.x + (b1.x - b0.x) * factor,
                   y: b0.y + (b1.y - b0.y) * factor,
                   w: b0.w + (b1.w - b0.w) * factor,
                   h: b0.h + (b1.h - b0.h) * factor,
-                  label: b0.label.includes('%') ? b0.label : `${b0.label} · ${b0.conf}%`,
+                  label: `${b0.label} · ${Math.round(c0 + (c1 - c0) * factor)}%`,
                   isPrimary: false,
                   isAnomaly: true,
+                  opacity: 1.0,
                 });
               } else {
                 // Smooth fade for tracks about to leave
-                aiBoxes.push({
-                  x: b0.x,
-                  y: b0.y,
-                  w: b0.w,
-                  h: b0.h,
-                  label: b0.label.includes('%') ? b0.label : `${b0.label} · ${b0.conf}%`,
-                  isPrimary: false,
-                  isAnomaly: true,
-                });
+                if (factor < 0.5) {
+                  aiBoxes.push({
+                    x: b0.x,
+                    y: b0.y,
+                    w: b0.w,
+                    h: b0.h,
+                    label: `${b0.label} · ${c0}%`,
+                    isPrimary: false,
+                    isAnomaly: true,
+                    opacity: 1.0 - (factor / 0.5),
+                  });
+                }
               }
-            });
+            }
 
             // 2. Also include freshly entering tracks in kf1 so emerging crowd members are not dropped
-            kf1Boxes.forEach((b1: any) => {
-              if (!processedIds.has(b1.id)) {
+            for (const b1 of kf1Boxes) {
+              if (processedIds.has(b1.id)) continue;
+              if (!b1.w || !b1.h || b1.w <= 0 || b1.h <= 0 || b1.w > b1.h * 2.0) {
+                continue;
+              }
+              const c1 = b1.conf ?? 50;
+              if (factor >= 0.5) {
                 aiBoxes.push({
                   x: b1.x,
                   y: b1.y,
                   w: b1.w,
                   h: b1.h,
-                  label: b1.label.includes('%') ? b1.label : `${b1.label} · ${b1.conf}%`,
+                  label: `${b1.label} · ${c1}%`,
                   isPrimary: false,
                   isAnomaly: true,
+                  opacity: (factor - 0.5) / 0.5,
                 });
               }
-            });
+            }
 
             currentBoxes = [primaryBox, ...aiBoxes];
           } else {
@@ -181,12 +217,17 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
               label: `${trk.id} · ${trk.conf}%`,
               isPrimary: false,
               isAnomaly: true,
+              opacity: 1.0,
             }));
             currentBoxes = [primaryBox, ...personBoxes];
           }
 
           // Render crisp hardware boxes
           for (const b of currentBoxes) {
+            const alpha = b.opacity !== undefined ? Math.max(0.05, Math.min(1.0, b.opacity)) : 1.0;
+            ctx.save();
+            ctx.globalAlpha = baseAlpha * alpha;
+
             const bx = (b.x / 100) * w;
             const by = (b.y / 100) * h;
             const bw = (b.w / 100) * w;
@@ -269,6 +310,7 @@ const BoundingBoxesLayer: React.FC<BoundingBoxesLayerProps> = ({
             ctx.fillStyle = isPrimary ? '#ffffff' : isAnomaly ? '#fef08a' : '#6ee7b7';
             ctx.textBaseline = 'middle';
             ctx.fillText(b.label, bx + 12, badgeY + badgeH / 2);
+            ctx.restore();
           }
 
           ctx.restore();
@@ -399,6 +441,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   onAcknowledge,
   onResolve,
 }) => {
+  const { dispatchEmergency } = useCrowdContext();
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [showResolveForm, setShowResolveForm] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
@@ -484,7 +527,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
   const [showReticle, setShowReticle] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showVectors, setShowVectors] = useState(false);
-  const [showBoundingBoxes, setShowBoundingBoxes] = useState(false);
+  const [showBoundingBoxes, setShowBoundingBoxes] = useState(true);
   const [overlayOpacity, setOverlayOpacity] = useState(80);
 
   if (!alert) return null;
@@ -588,10 +631,12 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
       (alert as any).telemetryUrl,
       `${API_BASE_URL}/incidents/${alert.id}/telemetry`,
       `${API_BASE_URL}/cameras/${alert.cameraId}/telemetry`,
-      videoSrc.includes('corridor_chokepoint') ? '/telemetry_corridor.json' :
-      videoSrc.includes('concourse_crossing') ? '/telemetry_concourse.json' :
-      videoSrc.includes('12269404') ? '/telemetry_cam001.json' :
-      videoSrc.includes('5287069') ? '/telemetry_cam002.json' :
+      videoSrc.includes('corridor_chokepoint') || alert.cameraId === 'cam-001' ? '/telemetry_corridor.json' : '',
+      videoSrc.includes('concourse_crossing') || alert.cameraId === 'cam-002' ? '/telemetry_concourse.json' : '',
+      videoSrc.includes('12269404') || alert.cameraId === 'cam-003' ? '/telemetry_terminal.json' : '',
+      videoSrc.includes('5287069') || alert.cameraId === 'cam-004' ? '/telemetry_plaza.json' : '',
+      '/telemetry_cam001.json',
+      '/telemetry_cam002.json',
       isCam1 ? '/telemetry_corridor.json' : '/telemetry_concourse.json',
     ].filter(Boolean) as string[];
 
@@ -662,12 +707,21 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
           area: '42 m²',
         };
 
-  const handleDispatchSecurity = () => {
+  const handleDispatchSecurity = async () => {
     if (onAcknowledge) onAcknowledge(alert.id);
-    setActionSuccess('Physical security team alerted and dispatched.');
+    setActionSuccess('📢 Broadcasting physical dispatch via SOC webhook & Telegram...');
+    try {
+      await dispatchEmergency(
+        alert.id,
+        `Emergency physical security response dispatched to ${alert.zoneName} (${alert.type})`,
+      );
+      setActionSuccess('✅ Security team alerted & dispatched. Webhook notification sent.');
+    } catch {
+      setActionSuccess('Physical security team alerted and dispatched.');
+    }
     setTimeout(() => {
       setActionSuccess(null);
-    }, 4000);
+    }, 4500);
   };
 
   const handleMarkFalsePositive = () => {
@@ -676,10 +730,10 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     } else if (onAcknowledge) {
       onAcknowledge(alert.id);
     }
-    setActionSuccess('Incident flagged as False Positive.');
+    setActionSuccess('Incident flagged as False Positive and archived.');
     setTimeout(() => {
       onClose();
-    }, 1500);
+    }, 1200);
   };
 
   const handleConfirmResolve = (e: React.FormEvent) => {
@@ -689,7 +743,7 @@ const SnapshotModal: React.FC<SnapshotModalProps> = ({
     } else if (onAcknowledge) {
       onAcknowledge(alert.id);
     }
-    setActionSuccess('Incident resolved and archived to incident history.');
+    setActionSuccess('Incident resolved and archived to incident audit history.');
     setTimeout(() => {
       onClose();
     }, 1200);

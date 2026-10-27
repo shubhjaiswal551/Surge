@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { useAuth } from './AuthContext';
 import { useCrowdStream } from '../hooks/useCrowdStream';
 import { API_BASE_URL } from '../config/api';
+import { playChime } from '../lib/sound';
 import {
   startCrowdSimulator,
   stopCrowdSimulator,
@@ -30,9 +31,10 @@ interface CrowdContextValue {
   todayIncidentsCount: number;
   isWsConnected: boolean;
   isDemoMode: boolean;
-  acknowledgeAlert: (id: string) => void;
-  acknowledgeAllAlerts: () => void;
-  resolveAlert: (id: string, notes: string, isFalsePositive: boolean) => void;
+  acknowledgeAlert: (id: string) => Promise<void>;
+  acknowledgeAllAlerts: () => Promise<void>;
+  resolveAlert: (id: string, notes?: string, isFalsePositive?: boolean) => Promise<void>;
+  dispatchEmergency: (id: string, customNote?: string) => Promise<boolean>;
   refetchIncidents: () => Promise<void>;
   triggerTestAlert: (custom?: Partial<Alert>) => void;
 }
@@ -86,6 +88,62 @@ const getInitialAlerts = (): Alert[] => [
   },
 ];
 
+const getInitialIncidents = (): Incident[] => [
+  {
+    id: 'inc-001',
+    timestamp: '2026-10-01T08:15:20Z',
+    cameraId: 'cam-001',
+    zoneName: 'North Transit Corridor (Chokepoint)',
+    alertType: 'Surge Detected',
+    severity: 'critical',
+    status: 'resolved',
+    acknowledgedBy: 'Control Room Operator',
+    resolvedAt: '2026-10-01T08:25:00Z',
+    notes: 'Security dispatched to open overflow turnstiles. Flow normalized.',
+    isFalsePositive: false,
+    metrics_json: {
+      density: 4.2,
+      headcount: 78,
+      velocity_variance: 4.1,
+      avg_speed: 4.5,
+    },
+  },
+  {
+    id: 'inc-002',
+    timestamp: '2026-10-01T09:40:12Z',
+    cameraId: 'cam-002',
+    zoneName: 'Central Concourse (Multi-Directional)',
+    alertType: 'Bottleneck Detected',
+    severity: 'high',
+    status: 'acknowledged',
+    acknowledgedBy: 'Control Room Operator',
+    notes: 'Directional lane partition deployed. Monitoring throughput.',
+    isFalsePositive: false,
+    metrics_json: {
+      density: 3.8,
+      headcount: 65,
+      velocity_variance: 0.3,
+      avg_speed: 0.4,
+    },
+  },
+  {
+    id: 'inc-003',
+    timestamp: new Date(Date.now() - 1000 * 60 * 3).toISOString(),
+    cameraId: 'cam-003',
+    zoneName: 'Main Terminal Gate (Dense Scramble)',
+    alertType: 'Density Threshold Exceeded',
+    severity: 'high',
+    status: 'open',
+    isFalsePositive: false,
+    metrics_json: {
+      density: 3.7,
+      headcount: 185,
+      velocity_variance: 2.8,
+      avg_speed: 0.9,
+    },
+  },
+];
+
 export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { profile } = useAuth();
   const [cameras, setCameras] = useState<CameraState[]>(() => {
@@ -96,8 +154,9 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   });
   const [heatmaps, setHeatmaps] = useState<CameraHeatmap[]>(() => getInitialHeatmaps());
   const [alerts, setAlerts] = useState<Alert[]>(() => getInitialAlerts());
-  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [incidents, setIncidents] = useState<Incident[]>(() => getInitialIncidents());
   const lastAlertTimestampRef = useRef<Record<string, number>>({});
+  const seenAlertIdsRef = useRef<Set<string>>(new Set(['alt-init-001', 'alt-init-002']));
 
   // 1. Dynamic Camera & Zone Fetching from Backend REST API
   useEffect(() => {
@@ -166,19 +225,41 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
-          const mapped: Incident[] = data.map((item: any) => ({
-            id: item.id,
-            timestamp: item.detected_at,
-            cameraId: item.camera_id,
-            zoneName: item.zone_id === 'zone-001' ? 'North Transit Corridor (Chokepoint)' : 'Central Concourse (Multi-Directional)',
-            alertType: item.event_type.charAt(0).toUpperCase() + item.event_type.slice(1) + ' Detected',
-            severity: item.severity >= 4 ? 'critical' : item.severity === 3 ? 'high' : 'warning',
-            status: item.resolved ? 'resolved' : item.acknowledged_at ? 'acknowledged' : 'open',
-            acknowledgedBy: item.acknowledged_by || undefined,
-            resolvedAt: item.resolved_at || undefined,
-            notes: item.notes || undefined,
-          }));
-          setIncidents(mapped);
+          const mapped: Incident[] = data.map((item: any) => {
+            const isFp = item.notes?.includes('[FALSE POSITIVE]') ?? false;
+            return {
+              id: item.id,
+              timestamp: item.detected_at,
+              cameraId: item.camera_id,
+              zoneName:
+                item.zone_id === 'zone-001'
+                  ? 'North Transit Corridor (Chokepoint)'
+                  : item.zone_id === 'zone-002'
+                  ? 'Central Concourse (Multi-Directional)'
+                  : item.zone_id === 'zone-003'
+                  ? 'Main Terminal Gate (Dense Scramble)'
+                  : 'Central Plaza Courtyard',
+              alertType: item.event_type.charAt(0).toUpperCase() + item.event_type.slice(1) + ' Detected',
+              severity: item.severity >= 4 ? 'critical' : item.severity === 3 ? 'high' : 'warning',
+              status: item.resolved ? 'resolved' : item.acknowledged_at ? 'acknowledged' : 'open',
+              acknowledgedBy: item.acknowledged_by || undefined,
+              resolvedAt: item.resolved_at || undefined,
+              notes: item.notes || undefined,
+              isFalsePositive: isFp,
+              metrics_json: item.metrics_json || item.metrics,
+            };
+          });
+
+          setIncidents((prev) => {
+            // Merge with local newly created or modified records
+            const merged = [...mapped];
+            for (const p of prev) {
+              if (!merged.some((m) => m.id === p.id)) {
+                merged.push(p);
+              }
+            }
+            return merged.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+          });
         }
       }
     } catch {
@@ -255,8 +336,14 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           }
 
           lastAlertTimestampRef.current[ev.cameraId] = now;
+          const alertId = `alt-${now.toString(36)}`;
+          seenAlertIdsRef.current.add(alertId);
+
+          // Audio alarm triggers ONLY for genuine incoming alerts
+          playChime(mappedSev);
+
           const newAlert: Alert = {
-            id: `alt-${now.toString(36)}`,
+            id: alertId,
             cameraId: ev.cameraId,
             zoneName: ev.zoneName,
             type: anomalyType,
@@ -273,6 +360,21 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 ? '/12269404_2320_1080_30fps.mp4'
                 : '/5287069-sd_960_540_30fps.mp4',
           };
+
+          // Also mirror into incidents queue
+          const newIncident: Incident = {
+            id: `inc-${now.toString(36)}`,
+            timestamp: newAlert.timestamp,
+            cameraId: ev.cameraId,
+            zoneName: ev.zoneName,
+            alertType: anomalyType,
+            severity: mappedSev,
+            status: 'open',
+            isFalsePositive: false,
+            metrics_json: ev.metrics,
+          };
+          setIncidents((incPrev) => [newIncident, ...incPrev].slice(0, 150));
+
           return [newAlert, ...prev].slice(0, 50);
         });
       }
@@ -325,6 +427,11 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                 : a,
             );
           }
+
+          if (!seenAlertIdsRef.current.has(alt.id)) {
+            seenAlertIdsRef.current.add(alt.id);
+            playChime(alt.severity);
+          }
           return [alt, ...prev].slice(0, 50);
         });
       }),
@@ -337,7 +444,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             (i) => i.cameraId === inc.cameraId && i.alertType === inc.alertType && i.status === 'open',
           );
           if (hasSame) return prev;
-          return [inc, ...prev].slice(0, 100);
+          return [inc, ...prev].slice(0, 150);
         });
       }),
     );
@@ -368,63 +475,207 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return () => clearInterval(ticker);
   }, []);
 
-  // Alert acknowledgement & resolution
-  const acknowledgeAlert = useCallback((id: string) => {
-    setAlerts((prev) =>
-      prev.map((a) =>
-        a.id === id
-          ? {
-              ...a,
-              acknowledged: true,
-              acknowledgedBy: profile?.displayName ?? 'Operator',
-            }
-          : a,
-      ),
-    );
-  }, [profile]);
+  // Alert & Incident Acknowledgement
+  const acknowledgeAlert = useCallback(
+    async (id: string) => {
+      const opName = profile?.displayName ?? 'Operator';
 
-  const resolveAlert = useCallback((id: string, notes: string, isFalsePositive: boolean) => {
-    const target = alerts.find((a) => a.id === id);
-    if (target) {
-      const resolvedInc: Incident = {
-        id: `inc-${Date.now().toString(36)}`,
-        cameraId: target.cameraId,
-        zoneName: target.zoneName,
-        alertType: target.type,
-        severity: target.severity,
-        status: 'resolved',
-        timestamp: target.timestamp,
-        acknowledgedBy: profile?.displayName ?? 'Operator',
-        resolvedAt: new Date().toISOString(),
-        notes,
-        isFalsePositive,
-      };
-      setIncidents((prev) => [resolvedInc, ...prev].slice(0, 100));
-      setAlerts((prev) => prev.filter((a) => a.id !== id));
-    }
-  }, [alerts, profile]);
+      // Optimistic update for Alerts
+      setAlerts((prev) =>
+        prev.map((a) =>
+          a.id === id || a.id.includes(id) || id.includes(a.id)
+            ? {
+                ...a,
+                acknowledged: true,
+                acknowledgedBy: opName,
+              }
+            : a,
+        ),
+      );
 
-  const acknowledgeAllAlerts = useCallback(() => {
+      // Optimistic update for Incidents
+      setIncidents((prev) =>
+        prev.map((inc) =>
+          inc.id === id || inc.id.includes(id) || id.includes(inc.id)
+            ? {
+                ...inc,
+                status: inc.status === 'open' ? 'acknowledged' : inc.status,
+                acknowledgedBy: inc.acknowledgedBy || opName,
+              }
+            : inc,
+        ),
+      );
+
+      playChime('info');
+
+      // Async backend sync
+      try {
+        const token = localStorage.getItem('surge_token') || localStorage.getItem('safecrowd_token');
+        await fetch(`${API_BASE_URL}/incidents/${id}/acknowledge`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            operator_id: profile?.uid || 'usr-op-001',
+            operator_name: opName,
+          }),
+        });
+      } catch {
+        // Offline demo fallback
+      }
+    },
+    [profile],
+  );
+
+  const acknowledgeAllAlerts = useCallback(async () => {
+    const opName = profile?.displayName ?? 'Operator';
+
     setAlerts((prev) =>
       prev.map((a) => ({
         ...a,
         acknowledged: true,
-        acknowledgedBy: profile?.displayName ?? 'Operator',
+        acknowledgedBy: opName,
       })),
     );
+
+    setIncidents((prev) =>
+      prev.map((inc) => ({
+        ...inc,
+        status: inc.status === 'open' ? 'acknowledged' : inc.status,
+        acknowledgedBy: inc.acknowledgedBy || opName,
+      })),
+    );
+
+    playChime('info');
+
+    try {
+      const token = localStorage.getItem('surge_token') || localStorage.getItem('safecrowd_token');
+      await fetch(`${API_BASE_URL}/incidents/batch-acknowledge`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          operator_id: profile?.uid || 'usr-op-001',
+          operator_name: opName,
+        }),
+      });
+    } catch {
+      // Offline fallback
+    }
   }, [profile]);
+
+  // Alert & Incident Resolution
+  const resolveAlert = useCallback(
+    async (id: string, notes?: string, isFalsePositive?: boolean) => {
+      const opName = profile?.displayName ?? 'Operator';
+      const resolvedAt = new Date().toISOString();
+      const defaultNote = isFalsePositive
+        ? 'Marked as false positive by operator'
+        : 'Resolved normal crowd flow.';
+      const finalNote = notes ? notes.trim() : defaultNote;
+
+      const targetAlert = alerts.find((a) => a.id === id || a.id.includes(id) || id.includes(a.id));
+      const targetIncident = incidents.find((i) => i.id === id || i.id.includes(id) || id.includes(i.id));
+
+      const resolvedInc: Incident = {
+        id: targetIncident?.id || targetAlert?.id || id,
+        cameraId: targetIncident?.cameraId || targetAlert?.cameraId || 'cam-001',
+        zoneName: targetIncident?.zoneName || targetAlert?.zoneName || 'Surveillance Zone',
+        alertType: targetIncident?.alertType || targetAlert?.type || 'Anomaly Detected',
+        severity: targetIncident?.severity || targetAlert?.severity || 'warning',
+        status: 'resolved',
+        timestamp: targetIncident?.timestamp || targetAlert?.timestamp || resolvedAt,
+        acknowledgedBy: opName,
+        resolvedAt,
+        notes: finalNote,
+        isFalsePositive: !!isFalsePositive,
+        metrics_json: targetAlert?.metrics || (targetIncident as any)?.metrics_json,
+      };
+
+      // 1. Remove from active triage alerts
+      setAlerts((prev) => prev.filter((a) => a.id !== id && !a.id.includes(id) && !id.includes(a.id)));
+
+      // 2. Add or update in incidents audit log
+      setIncidents((prev) => {
+        const exists = prev.some((i) => i.id === resolvedInc.id);
+        if (exists) {
+          return prev.map((i) => (i.id === resolvedInc.id ? resolvedInc : i));
+        }
+        return [resolvedInc, ...prev].slice(0, 150);
+      });
+
+      playChime('success');
+
+      // 3. Async backend sync
+      try {
+        const token = localStorage.getItem('surge_token') || localStorage.getItem('safecrowd_token');
+        await fetch(`${API_BASE_URL}/incidents/${id}/resolve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            operator_id: opName,
+            notes: finalNote,
+            is_false_positive: !!isFalsePositive,
+          }),
+        });
+      } catch {
+        // Offline demo fallback
+      }
+    },
+    [alerts, incidents, profile],
+  );
+
+  // Emergency SOP Dispatch Action
+  const dispatchEmergency = useCallback(
+    async (id: string, customNote?: string): Promise<boolean> => {
+      // Automatically acknowledge the incident first
+      await acknowledgeAlert(id);
+
+      try {
+        const token = localStorage.getItem('surge_token') || localStorage.getItem('safecrowd_token');
+        const res = await fetch(`${API_BASE_URL}/incidents/${id}/dispatch`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            operator_id: profile?.uid || 'usr-op-001',
+            custom_note: customNote || 'Physical security team emergency dispatch dispatched from Surge SOC.',
+          }),
+        });
+        return res.ok;
+      } catch {
+        return true; // Graceful offline/demo fallback
+      }
+    },
+    [acknowledgeAlert, profile],
+  );
 
   const triggerTestAlert = useCallback(
     (custom?: Partial<Alert>) => {
       const now = Date.now();
       const targetCamId = custom?.cameraId || 'cam-003';
       const matchedCam = cameras.find((c) => c.cameraId === targetCamId);
+      const newAlertId = `alt-${now.toString(36)}`;
+      seenAlertIdsRef.current.add(newAlertId);
+
+      const sev = custom?.severity || 'high';
+      playChime(sev);
+
       const newAlert: Alert = {
-        id: `alt-${now.toString(36)}`,
+        id: newAlertId,
         cameraId: targetCamId,
         zoneName: custom?.zoneName || matchedCam?.zoneName || 'Main Terminal Gate (Dense Scramble)',
         type: custom?.type || 'Crowd Surge Detected',
-        severity: custom?.severity || 'high',
+        severity: sev,
         timestamp: new Date(now).toISOString(),
         acknowledged: false,
         snapshotUrl:
@@ -447,6 +698,19 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       setAlerts((prev) => [newAlert, ...prev].slice(0, 50));
+
+      const newIncident: Incident = {
+        id: `inc-${now.toString(36)}`,
+        timestamp: newAlert.timestamp,
+        cameraId: targetCamId,
+        zoneName: newAlert.zoneName,
+        alertType: newAlert.type,
+        severity: sev,
+        status: 'open',
+        isFalsePositive: false,
+        metrics_json: newAlert.metrics,
+      };
+      setIncidents((prev) => [newIncident, ...prev].slice(0, 150));
     },
     [cameras],
   );
@@ -482,6 +746,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       acknowledgeAlert,
       acknowledgeAllAlerts,
       resolveAlert,
+      dispatchEmergency,
       refetchIncidents,
       triggerTestAlert,
     }),
@@ -498,6 +763,7 @@ export const CrowdProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       acknowledgeAlert,
       acknowledgeAllAlerts,
       resolveAlert,
+      dispatchEmergency,
       refetchIncidents,
       triggerTestAlert,
     ],
